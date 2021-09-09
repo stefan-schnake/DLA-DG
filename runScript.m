@@ -1,182 +1,249 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%% Script for Dynamic Low Rank Approximation
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-N = 32;
+%% Parameters
 
+%Number of cells in x and v direction
+N = 512;
+
+%X and V domain 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
-k = 2;
 
-r = 15;
+%Polynomial degree
+k = 0;
 
+%Rank
+r = 20;
+
+%Plot and save results
+plotbool = true;
+savebool = false;
+
+%%Which test to run:
+% test = 1 is spinning box
+% test = 2 is smooth solution
+test = 1;
+
+%Set CFL
+CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);
+%Making dt and integer division of pi
+dt = pi/(8*ceil(1/CFL));
+
+%Final time
 T = pi;
 
-plotbool = true;
-
-adapt = false;
-adapt_tol = 1e-4;
-
-%dt = 0.5*(2/N^2);
-%dt = .1;
-CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);
-%CFL = 1/N^2;
-%dt = 0.8*CFL;
-%CFL = (5/4)*(1/73536);
-%dt = 0.9*CFL;
-dt = pi/(8*ceil(1/CFL));
-%dt = 0.05;
-
-%T = 10*dt;
-T = 0.5;
+%%%Timestepping method
+% 'FE','RK2','RK3'
+tstep = 'FE';
 
 %%%-------------------------------------------
 
-L = buildLDGMatrixAlt(x,v,k);
-LDG = L'*L;
-Jmp = buildJumpMatrix(x,v,k,1);
-Adv = buildAdvectionMatrix(x,v,k,true);
-Adv_back = buildBackAdvectionMatrix(x,v,k,true);
+%Clear figures
+if plotbool
+figure(5)
+clf('reset')
+end
 
-%Use diffusion or advection
-A = Adv;
-%A2 = Adv_back;
-%A = LDG+N*Jmp;
-%A2 = LDG+N*Jmp;
-%A = LDG;
-%A2 = LDG;
+%Create wavelet to real space operator
+FMWT = OperatorTwoScale_wavelet2(k+1,log2(N));
 
+Acell = buildAdvectionMatrixWithBlocks2(x,v,k);
+Awave = cell(size(Acell));
+for i=1:numel(Acell)
+    Awave{i} = FMWT*Acell{i}*FMWT';
+end
+
+if test == 1
 init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
-%init = @(x,y) 16*(x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2).*(1/4-x.^2).*(1/4-y.^2);
-%init = @(x,y) (1-x.^2).*(1-y.^2);
-%init = @(x,y) sin(pi*x).*sin(pi*y);
-%init = @(x,y) cos(pi*x).*cos(pi*y);
-%init = @(x,y) exp(-10*(x.^2+y.^2));
-%init = @(x,y) x.*y;
-%init = @(x,y) (x > -.25).*(x < .25).*(y > .25).*(y < .75).*x;
-%soln = @(x,y,t) init(x+t*y,y-t*x);
-soln = @(x,v,t) soln_func(x,v,t,init);
-%soln = @(x,v,t) 0*x;
-%soln = @(x,y,t) cos(pi*x).*cos(pi*y)*exp(-2*pi^2*t);
+BCsoln = @(x,v,t) soln_func(x,v,t,init);
+source = @(x,v,t) 0*x;
+elseif test == 2
+u_sht = @(x,y) x+y+x.*y.^2; %u_short
+L_usht = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y); %L_u
+u_lng = @(x,y) sin(pi*x).*sin(pi*y);
+L_ulng = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
+%u_lng = @(x,y) 0*x+1;
+%L_ulng = @(x,y) 0*x;
+%tmdp = @(t) 1/(t+1);
+%dt_tmdp = @(t) -1/(t+1)^2;
+tmdp = @(t) exp(-5*t);
+dt_tmdp = @(t) -5*exp(-5*t); 
+BCsoln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
+init = @(x,y) BCsoln(x,y,0);
+soln   = {@(x,t) sin(pi*x), @(t) 1-tmdp(t), @(y,t) sin(pi*y);...
+          @(x,t) x, @(t) tmdp(t), @(y,t) 0*y+1; ...
+          @(x,t) 0*x+1, @(t) tmdp(t), @(y,t) y;...
+          @(x,t) x, @(t) tmdp(t), @(y,t) y.^2};
+source_vec = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
+%%%Coding negative of source!!!!
+source = {@(x,t) sin(pi*x),    @(t) dt_tmdp(t) , @(y,t) sin(pi*y);...
+          @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) 0*y+1; ...
+          @(x,t) 0*x+1,        @(t) -dt_tmdp(t), @(y,t) y;...
+          @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) y.^2;...
+          @(x,t) -pi*cos(pi*x),@(t) -1+tmdp(t),  @(y,t) y.*sin(pi*y);...
+          @(x,t) x.*sin(pi*x), @(t) -1+tmdp(t),  @(y,t) pi*cos(pi*y);...
+          @(x,t) 0*x-1,        @(t) -tmdp(t),    @(y,t) y.*(1+y.^2);...
+          @(x,t) x,            @(t) -tmdp(t),    @(y,t) 0*y+1;...
+          @(x,t) 2*x.^2,       @(t) -tmdp(t),    @(y,t) y};
+elseif test == 3
+u_lng = @(x,y) x+y+x.*y.^2 +... x.^3.*y.^3 + x.^4.*y.^4 + ...
+    sin(pi*(x-1/4)).*sin(pi*(y-1/4)) + cos(pi*(x-1/4)).*cos(pi*(y-1/4));
+L_ulng = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y) + ... -y.*3.*x.^2.*y.^3 + x.*3*x.^3.*y.^2 - y.*4.*x.^3.*y.^4 + x.*4.*x.^4.*y.^3;% + ...
+    -y.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4)) + x.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) + ...
+     y.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) - x.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4));
+u_sht = @(x,y) sin(pi*x).*sin(pi*y);
+L_usht = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
+%u_lng = @(x,y) 0*x+1;
+%L_ulng = @(x,y) 0*x;
+%tmdp = @(t) 1/(t+1);
+%dt_tmdp = @(t) -1/(t+1)^2;
+tmdp = @(t) exp(-10*t);
+dt_tmdp = @(t) -10*exp(-10*t); 
+soln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
+init = @(x,y) soln(x,y,0);
+source = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
+else
+disp("Please select a test");
+return 
+end
 
-%u0 = buildSeparableSource(x,v,k,@(x) cos(pi*x),@(y) cos(pi*y));
-%u0 = buildSeparableSource(x,v,k,@(x) exp(x),@(y) cos(y));
-%u0 = buildSeparableSource(x,v,k,@(x) (x > -1/2).*(x < 1/2),@(y) (y > -1/2).*(y < 1/2));
+%Build initial condition
 u0 = buildNonSeparableSource(x,v,k,init);
 u = u0;  
 
+%Used to check conservation
 one = buildSeparableSource(x,v,k,@(x) 0*x+1,@(v) 0*v+1);
 cons = one'*u0;
-    
-%Run a few timesteps to smooth the solution out
-%for i=1:5
-%u = u + dt*LDG*u;
-%end
 
-uu = u0;
-
+%Take SVD of initial condition
 matu = convertVectoMat(x,v,k,u);
 [U,Sig,V] = svd(matu);
+C0 = FMWT*U;
+S0 = Sig;
+D0 = FMWT*V;
+R = [r]; 
+C = C0(:,1:r);
+S = S0(1:r,1:r);
+D = D0(:,1:r);
 
-Sig = diag(Sig);
-if adapt
-    r = sum(Sig > adapt_tol)+1;
-    if r > size(U,1); r = size(U,1); end
-    fprintf('-- Initial Adaptive r: r = %d\n',r);
-    R = [r];
-else
-   R = r; 
-end
-Sig = diag(Sig);
-
-%Get rank5 approximation
-C = U(:,1:r);
-D = V(:,1:r);
-S = Sig(1:r,1:r);
-
-rank1 = log10(Sig(1))-log10(Sig(2));
-
-
-u = convertMattoVec(x,v,k,C*S*D');
+U = C*S*D';
+UU = U;
+uu = u;
 i = 0;
-while (dt*(i+1) <= T+1e-9) 
+t = 0;
+while (t+dt <= T+1e-9) 
 i = i+1;
+t0 = t;
+t = t + dt;
+lastplot = 0;
+if t+dt > T+1e-9; lastplot=1; end
 fprintf("-------------------------------------------------------\n");
 fprintf("i=%d; t = %f\n",i,dt*i);
-BC = [buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-1)*dt)), ...
-      buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-0.5)*dt)), ...
-      buildDirichletBC(x,v,k,@(x,y) soln(x,y,i*dt))];
-%BC = buildDirichletBC(x,v,k,@(x,y) soln(x,y,i*dt));
-      
-%BC_old = buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-1)*dt));
-%BC_hlf = buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-1/2)*dt));
-
-%updateDLA = @(C,S,D) DLA(x,v,k,C,S,D,dt,A,A2,BC);
-%updateDLA = @(C,S,D) DLA_CN(x,v,k,C,S,D,dt,A,A2,BC);
-%updateDLA = @(C,S,D) DLA2_BE(x,v,k,C,S,D,dt,A,BC);
-updateDLA = @(C,S,D) DLA2_SSP(x,v,k,C,S,D,dt,A,BC);
-
-if adapt
-    [C,S,D] = AdaptiveDLA(C,S,D,updateDLA,adapt_tol);
-    R = [R size(S,1)];
+if test == 1
+    BC.use = 0;    
 else
-    %[C,S,D] = DLA(x,v,k,C,S,D,dt,A,Adv_back);
-    [C,S,D] = updateDLA(C,S,D);
+    BC.use = 1;
+    BC.cell1 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t-dt));buildSeparableSourceMat(x,v,k,t-dt,source)];
+    BC.cell2 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t-0.5*dt));buildSeparableSourceMat(x,v,k,t-0.5*dt,source)];
+    BC.cell3 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t));buildSeparableSourceMat(x,v,k,t,source)];
+    %Convert BCs to Wavespace
+    for l=1:size(BC.cell1,1)
+       BC.cell1{l,1} = FMWT*BC.cell1{l,1}; 
+       BC.cell1{l,3} = FMWT*BC.cell1{l,3}; 
+       BC.cell3{l,1} = FMWT*BC.cell3{l,1}; 
+       BC.cell3{l,3} = FMWT*BC.cell3{l,3}; 
+    end
+end
+ 
+
+if strcmp(tstep,'FE')
+    updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
+elseif strcmp(tstep,'RK2')
+    updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
+elseif strcmp(tstep,'RK3')
+    updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
 end
 
-sing = svd(S);
-rank1 = [rank1 log10(sing(1))-log10(sing(2))];
-fprintf('Min singular value of S: %e\n',min(sing));
+%Update DLA
+[C,S,D] = updateDLA(C,S,D);
+    
+R = [R size(S,1)];
+r = size(S,1);
+fprintf("r = %d\n",r);
 
-%Get new u
-u = convertMattoVec(x,v,k,C*S*D');
+%% Full-grid run
+fullgrid = 0;
+if fullgrid
+    if BC.use
+        U1 = UU - dt*applyMatA(UU,Awave);
+        for l=1:size(BC.cell1,1)
+            U1 = U1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
+        end
+        %UU = (1/2)*UU + (1/2)*(U1-dt*applyMatA(U1,Awave)-dt*BC.vec(:,3));
+        UU = U1;
+    else
+        U1 = UU - dt*applyMatA(UU,Awave);
+        %UU = (1/2)*UU + (1/2)*(U1-dt*applyMatA(U1,Awave));
+        UU = U1;
+    end
+
+    if BC.use
+       LTEU1 = U - dt*applyMatA(U,Awave) - dt*BC.cell1{1,1}*BC.cell1{1,2}*BC.cell1{1,3}';
+       for l=1:size(BC.cell1,1)
+            LTEU1 = LTEU1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
+        end
+       %LTEU = (1/2)*U + (1/2)*(LTEU1-dt*applyMatA(LTEU1,Awave)-dt*BC.vec(:,3));
+       LTEU = LTEU1;
+    else
+       LTEU1 = U - dt*applyMatA(U,Awave);
+       %LTEU = (1/2)*U + (1/2)*(LTEU1-dt*applyMatA(LTEU1,Awave));
+       LTEU = LTEU1;
+    end
+    U = C*S*D';
+    LTE = norm(LTEU-U,'fro');
+
+end
 
 
-%% Traditonal Backward Euler
-%uu = pcg(speye(size(LDG))+dt*LDG,uu,1e-13);
-%%%BE
-%uu = (speye(size(LDG))+dt*A)\(uu);
-%%%CN
-%uu = (speye(size(LDG))+dt/2*A)\( (speye(size(LDG))-dt/2*A)*uu - 0.5*dt*(BC(:,1)+BC(:,3)));
-%uu = (speye(size(LDG))+dt/2*A)\( (speye(size(LDG))-dt/2*A)*uu );
-%uu = uu - dt*A*uu;
-%uu = expm(-A*(i*dt))*u0;
-%%%SSP-RK3
-u1 = uu - dt*A*uu - dt*BC(:,1);
-u2 = (3/4)*uu + (1/4)*(u1-dt*A*u1-dt*BC(:,3));
-uu = (1/3)*uu + (2/3)*(u2-dt*A*u2-dt*BC(:,2));
-[UU,SS,VV] = svd(convertVectoMat(x,v,k,uu));
-UU_lr = UU(:,1:R(end));
-SS_lr = SS(1:R(end),1:R(end));
-VV_lr = VV(:,1:R(end));
-uu_lr = convertMattoVec(x,v,k,UU_lr*SS_lr*VV_lr');
 
 %% Error Calc and plotting
-u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
 %fprintf('-- Norm of BE: %e\n',norm(uu));
 %fprintf('- Errors:\n');
 %fprintf('-- Error of DLA   and L2 Proj: %e\n',norm(u-u_sol))
 %fprintf('-- Error of BE    and L2 Proj: %e\n',norm(uu-u_sol))
 %fprintf('-- Error of BE_lr and L2 Proj: %e\n',norm(uu_lr-u_sol))
-if plotbool
+if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
+    u = convertMattoVec(x,v,k,FMWT'*C*S*D'*FMWT);
     figure(5)
-    plotVec(x,v,k,u,@(x,y) soln(x,y,i*dt));
-    %plotVec(x,v,k,u);
+    plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
     sgtitle('DLA Solution')
-    %imagesc(flipud(reshape(u,N,[])));colorbar;
-    figure(6)
-    %imagesc(flipud(reshape(uu,N,[])));colorbar;
-    %plotVec(x,v,k,uu);
-    plotVec(x,v,k,uu,@(x,y) soln(x,y,i*dt));
-    sgtitle('Full-Grid Solution')
+ 
     drawnow
-end
+    aa = 2;
 end
 
-if adapt
-    figure(7)
-    plot((1:numel(R))-1,R)
-    title('Adaptive Rank plot');
-    xlabel('iteration')
-    ylabel('rank')
+end
+
+%Save plots
+if savebool
+    fold = "figures/"+datestr(now,'mm-dd');
+    
+    if ~isfolder(fold)
+        mkdir(fold);
+    end
+    cd(fold)
+    figure(5)
+    saveas(gcf,"N="+num2str(N)+"-k="+num2str(k)+"-test="+num2str(test)+"-tol="+num2str(adapt_tol)+"_DLA.eps",'epsc');
+    %figure(6)
+    %saveas(gcf,"test="+num2str(test)+"-tol="+num2str(adapt_tol)+"_FUL.eps",'epsc');
+    figure(8)
+    saveas(gcf,"N="+num2str(N)+"-k="+num2str(k)+"-test="+num2str(test)+"-tol="+num2str(adapt_tol)+"_MET.eps",'epsc');
+    cd ..
+    cd ..  
+    
 end
 
 function z = soln_func(x,v,t,u0)
