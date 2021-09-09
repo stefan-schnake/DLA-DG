@@ -1,10 +1,10 @@
 
-N = 64;
+N = 512;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
-k = 2;
+k = 0;
 
 r = 40;
 
@@ -13,16 +13,8 @@ r_cut = 1;
 plotbool = true;
 savebool = false;
 
-adapt  = false;
-adapt2 = false;
+adapt  = true;
 adapt_tol = 1e-3;
-
-adapt3 = false;
-
-adapt4 = false;
-
-hier_adapt = false;
-hier_tol = 0.55;
 
 test = 1;
 
@@ -58,12 +50,11 @@ end
 %L = buildLDGMatrixAlt(x,v,k);
 %LDG = L'*L;
 %Jmp = buildJumpMatrix(x,v,k,1);
-Adv = buildAdvectionMatrix(x,v,k,true);
+%Adv = buildAdvectionMatrix(x,v,k,true);
 %Adv_back = buildBackAdvectionMatrix(x,v,k,true);
 FMWT = OperatorTwoScale_wavelet2(k+1,log2(N));
 
-Acell = buildAdvectionMatrixWithBlocks(x,v,k);
-Acell2 = buildAdvectionMatrixWithBlocks2(x,v,k);
+Acell = buildAdvectionMatrixWithBlocks2(x,v,k);
 Awave = cell(size(Acell));
 for i=1:numel(Acell)
     Awave{i} = FMWT*Acell{i}*FMWT';
@@ -79,6 +70,8 @@ end
 
 if test == 1
 init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+%init = @(x,y) x.^2.*y + x;
+%init = @(x,y) exp(10*(-(x-0.7).^2-(y-0.4)^2));
 %init = @(x,y) 16*(x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2).*(1/4-x.^2).*(1/4-y.^2);
 %init = @(x,y) (1-x.^2).*(1-y.^2);
 %init = @(x,y) exp(1/4*(x-y));
@@ -164,19 +157,10 @@ S0 = Sig;
 D0 = FMWT*V;
 
 Sig = diag(Sig);
-if (adapt || adapt2 || adapt3)
+if adapt
     r = sum(Sig > adapt_tol)+1;
     if r > size(U,1); r = size(U,1); end
     fprintf('-- Initial Adaptive r: r = %d\n',r);
-    R = [r];
-elseif hier_adapt
-    [C,S,D] = initHierAdapt(C0,S0,D0,hier_tol);
-    r = size(S,1);
-    fprintf('-- Initial Adaptive r: r = %d\n',r);
-    R = [r];
-elseif adapt3
-    [~,Stemp,~,~] = lrSVDApprox(C0,S0,D0,adapt3_tol);
-    r = size(Stemp,1);
     R = [r];
 else
     R = [r]; 
@@ -188,25 +172,6 @@ D = D0(:,1:r);
 
 %myhist = [0;r;S0(r,r);norm(u-uu)];
 myhist = [];
-
-% if hier_adapt
-%     [C,S,D] = initHierAdapt(FMWT*U,Sig,FMWT*V,hier_tol);
-%     r = size(S,1);
-%     fprintf('-- Initial Adaptive r: r = %d\n',r);
-%     R = [r];
-%     %Sig = svd(S);
-%     %adapt_tol = S(end);
-% else
-%     R = [r]; 
-%     C = FMWT*U(:,1:r);
-%     D = FMWT*V(:,1:r);
-%     S = Sig(1:r,1:r);
-% end
-
-%Get rank5 approximation
-
-
-rank1 = log10(Sig(1))-log10(Sig(2));
 
 %Convert from realspace to waveletspace
 %C = FMWT*C;
@@ -275,7 +240,7 @@ end
 %updateDLA = @(C,S,D) DLA_CN(x,v,k,C,S,D,dt,A,A2,BC);
 %updateDLA = @(C,S,D) DLA2_HB_SSP(x,v,k,C,S,D,dt,A,BC-SC,FMWT);
 %updateDLA = @(C,S,D) DLA3_HB_SSP(x,v,k,C,S,D,dt,Awave,BC,FMWT);
-updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
+updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA5_HB_SSP(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK2_woproj(x,v,k,C,S,D,dt,Awave,BC);
@@ -288,30 +253,11 @@ updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
 
 
 if adapt
-    [C,S,D] = AdaptiveDLAWithInit(C,S,D,updateDLA,adapt_tol,i,C0,S0,D0);
+    %[C,S,D] = AdaptiveDLAResdiual_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    [C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
     %[C,S,D] = updateDLA(C,S,D);
     %[C,S,D] = initHierAdapt(C,S,D,hier_tol);
     %R = [R size(S,1)];
-elseif adapt2
-    %u = convertMattoVec(x,v,k,(FMWT'*C)*S*(FMWT'*D)');
-    %plusOneDLA = @(C,S,D) DLA2_HB_BE(x,v,k,C,S,D,5,speye(size(A))+dt*A,-repmat(u,1,3) + dt*(BC-SC),FMWT);
-    %[C,S,D] = AdaptiveDLAWithInitv2Hier(C,S,D,updateDLA,plusOneDLA,adapt_tol,i,C0,S0,D0,false);
-    %[C,S,D] = updateDLA(C,S,D);
-    %[C,S,D,t] = AdaptiveDLAWithInitv4(x,v,k,C,S,D,t-dt,t,updateDLA,adapt_tol,i,C0,S0,D0,Acell,RHS,FMWT);
-    %[C,S,D] = AdaptiveDLAWithInitv7(x,v,k,C,S,D,t,updateDLA,adapt_tol,Awave,RHS(t,dt),FMWT);
-    [C,S,D] = AdaptiveDLAWithInitv8(x,v,k,C,S,D,t,dt,updateDLA,adapt_tol,Awave,BC,FMWT);
-elseif adapt3
-    %[C,S,D,t] = AdaptiveDLAWithInitv6(x,v,k,C,S,D,t-dt,t,updateDLA,adapt3_tol,i,C0,S0,D0,Acell,RHS,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual2_SSP_RK2(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    [C,S,D] = AdaptiveDLAResdiual3_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual_FE2(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-elseif adapt4
-    [C,S,D] = DLA4_HB_SSP(x,v,k,C,S,D,dt,Awave,RHS(t,dt),FMWT,1e-7);
-elseif hier_adapt
-    [C,S,D] = updateDLA(C,S,D,t);
-    [C,S,D] = initHierAdapt(C,S,D,hier_tol);
 else
     [C,S,D] = updateDLA(C,S,D);
     
@@ -471,7 +417,7 @@ end
 end
 
 
-if (hier_adapt+adapt+adapt2+adapt3+adapt4) && plotbool
+if adapt && plotbool
     figure(9)
     plot((1:numel(R))-1,R)
     title('Adaptive Rank plot');
@@ -525,9 +471,9 @@ function u = update_RK3_SSP(u,dt,A,SF)
     u  = (1/3)*u + (2/3)*(u2-dt*A*u2-dt*SF(:,2));
 end
 
-function LU = applyMatA(U,start,Awave)
+function LU = applyMatA(U,Awave)
     LU = 0*U;
-    for l=start:size(Awave,1)
+    for l=1:size(Awave,1)
         LU = LU + Awave{l,1}*U*Awave{l,2}';
     end
 end

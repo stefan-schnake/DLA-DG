@@ -6,35 +6,47 @@ r = size(S,1);
 fprintf('-- Adaptive: r = %d\n',r);
 C0 = C; S0 = S; D0 = D;
 %Update
+tic
 [C,S,D] = DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %Compute SVD of S
-[S_C,Sig,S_D] = svd(S);
-fprintf('-- Adaptive: Smallest singular value is %e with tolerance %e\n',Sig(end),tol);
-%rflag =  svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),1);
-%fprintf('-- Adaptive: Largest  singular value of residual is %e\n',rflag);
-%Compute estimation to residual
-if Sig(end,end) < tol
-    rr = r;
-    r = sum(diag(Sig) > tol) + 1;
-    if rr ~= r
-        fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,Sig(end,end));
-        C = C*S_C(:,1:r);
-        S = Sig(1:r,1:r);
-        D = D*S_D(:,1:r);
-    end
-else
-    rr = 0;
+%[S_C,Sig,S_D] = svd(S);
+toc
+fprintf(' DLA update time: %f\n',toc);
+tic
+[C1,norm2,D1] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),1);
+toc
+normF = norm2*sqrt(6*r)/2;
+% Afun = @(X) AtranspA(C0,S0,D0,Awave,dt,BC,X,C,D);
+% X0 = rand(size(C,1),1); X0 = X0/norm(X0);
+% tic
+% [V2,lm2,failureFlag] = blopex_matlab(X0,Afun,[],[],[],1e-8,20,0);
+% toc
+% Afun = @(X) -AtranspA(C0,S0,D0,Awave,dt,BC,X,C,D);
+% tic
+% [V3,lm3] = eigs(Afun,size(C,1),1);
+% toc
+fprintf('-- Adaptive: Residual computation time: %f\n',toc);
+fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',sqrt(6*r)*norm2,tol);
+if normF > tol %Add rank
+    fprintf('-- Adaptive: Increasing rank\n');
+    S1 = norm2;
+    rr = 1;
     tolflag = true;
     while tolflag == true
-        rr = rr + 5;
-        if rr >= size(C,1)
-            rr = size(C,1);
+        if rr+5 >= size(C,1)
+            tolflag = false;
+        end       
+        [Ct,St,Dt] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D) ...
+            - LReval(C1,S1,D1,x,trans),[1,1]*size(C,1),5,'largest','FailureTreatment','drop');
+        rr = rr + size(St,1);
+        norm2 = St(end:end);
+        normF =  norm2*sqrt(6*r)/2;
+        if normF < tol
             tolflag = false;
         end
-        [C1,S1,D1] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),rr);
-        if S1(end,end) < tol
-            tolflag = false;
-        end
+        S1 = diag([diag(S1);diag(St)]);
+        C1 = [C1 Ct];
+        D1 = [D1 Dt];
     end
     % % RR = computeFullGrid(C0,S0,D0,Awave,dt,BC) - C*S*D';
     % % [C1,S1,D1] = svd(RR);
@@ -45,14 +57,33 @@ else
     S_fill = zeros(r,rr);
     R = R_C*[S S_fill;S_fill' S1]*R_D';
     [S_C,Sig,S_D] = svd(R);
-    r = sum(diag(Sig) > tol) + 1;
-    fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,Sig(end,end));
+    r = sum(diag(Sig) > 1e-14);
     C = C*S_C(:,1:r);
     S = Sig(1:r,1:r);
     D = D*S_D(:,1:r);
+    fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,S(end,end));
+elseif normF < 0.5*tol %Need to decrease rank
+    fprintf('-- Adaptive: Decreasing rank\n');
+    [S_C,Sig,S_D] = svd(S);
+    Sig = diag(Sig);
+    rr = r;
+    for i=r:-1:1
+        if sum(Sig(i:r)) + normF >= 0.5*tol
+            rr = i;
+            break
+        end
+    end
+    if rr ~= r
+        r = rr;
+        %fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,Sig(end,end));
+        C = C*S_C(:,1:r);
+        Sig = diag(Sig);
+        S = Sig(1:r,1:r);
+        D = D*S_D(:,1:r);
+    end
+else
+    fprintf('-- Adaptive: No change in rank\n');
 end
-
-toc
 end
 
 function Y = firstOrderResidual(C,S,D,Acell,dt,BC,X,trans,C1,D1)
@@ -121,6 +152,21 @@ else
     
 end
     
+
+end
+
+function Y = AtranspA(C,S,D,Acell,dt,BC,X,C1,D1)
+    Y = firstOrderResidual(C,S,D,Acell,dt,BC,X,'notransp',C1,D1);
+    Y = -firstOrderResidual(C,S,D,Acell,dt,BC,Y,  'transp',C1,D1);
+end
+
+function Y = LReval(C,S,D,X,trans)
+
+if strcmp(trans,'notransp')
+    Y = C*S*(D'*X);
+else
+    Y = D*S'*(C'*X);
+end
 
 end
 
