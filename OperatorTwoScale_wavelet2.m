@@ -13,17 +13,17 @@ function [FMWT, blocks] = OperatorTwoScale_wavelet2(deg,nLev)
 idebug = 0;
 assert(nLev >= 0);
 
-asgard_root = get_root_folder();
+%asgard_root = get_root_folder();
 
-fileName = [asgard_root,'/two_scale/two_scale_rel_',num2str(deg),'.mat'];
-
-if exist(fileName,'file') == 2
-    load(fileName);
-else
-    disp('Generating two-scale file');
-    [H0,H1,G0,G1,scale_co,phi_co]=MultiwaveletGen(deg);
-    save(fileName,'H0','G0','scale_co','phi_co');
-end
+% fileName = [asgard_root,'/two_scale/two_scale_rel_',num2str(deg),'.mat'];
+% 
+% if exist(fileName,'file') == 2
+%     load(fileName);
+% else
+%     disp('Generating two-scale file');
+     [H0,H1,G0,G1,scale_co,phi_co]=MultiwaveletGen(deg);
+%     save(fileName,'H0','G0','scale_co','phi_co');
+% end
 
 if(nLev == 0)
    FMWT = eye(deg, deg);
