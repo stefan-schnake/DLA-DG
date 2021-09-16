@@ -76,29 +76,6 @@ else
     S1 = (1/2)*S_ + (1/2)*F(F1);
 end
 
-
-if 0
-F11 = F1;
-if BC.use
-    %F1 = F(S_);
-    F1 = S_ - dt*applyAonS(S,C1,D1,Awave);
-    for l=1:NN
-        F1 = F1 - dt*(C1'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D1);
-    end
-    S2 = (1/2)*S_ + (1/2)*F(F1);
-    for l=1:NN
-        S2 = S2 - 0.5*dt*(C1'*BC.cell3{l,1})*BC.cell3{l,2}*(BC.cell3{l,3}'*D1);
-    end
-else
-    %F1 = F(S_);
-    F1 = S_ - dt*applyAonS(S,C1,D1,Awave);
-    S2 = (1/2)*S_ + (1/2)*F(F1);
-end  
-
-fprintf('--- Correction Error: %e\n',norm(S1-S2,'fro'));
-end
-
-
 C = C1;
 S = S1;
 D = D1;

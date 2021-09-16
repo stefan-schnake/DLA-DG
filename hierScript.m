@@ -6,7 +6,7 @@ x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
 k = 0;
 
-r = 40;
+r = 20;
 
 r_cut = 1;
 
@@ -14,7 +14,7 @@ plotbool = true;
 savebool = false;
 
 adapt  = true;
-adapt_tol = 1e-3;
+adapt_tol = 5e-4;
 
 test = 1;
 
@@ -39,8 +39,8 @@ T = pi;
 if plotbool
 figure(5)
 clf('reset')
-%figure(6)
-%clf('reset')
+figure(6)
+clf('reset')
 %figure(7)
 %clf('reset')
 figure(8)
@@ -141,6 +141,8 @@ end
 u0 = buildNonSeparableSource(x,v,k,init);
 u = u0;  
 
+sigk = []; %smallest singular value
+
 one = buildSeparableSource(x,v,k,@(x) 0*x+1,@(v) 0*v+1);
 cons = one'*u0;
 
@@ -165,7 +167,7 @@ if adapt
 else
     R = [r]; 
 end
-%r = 10;
+%r = 40;
 C = C0(:,1:r);
 S = S0(1:r,1:r);
 D = D0(:,1:r);
@@ -199,7 +201,8 @@ fprintf("i=%d; t = %f\n",i,dt*i);
 %      buildNonSeparableSource(x,v,k,@(x,y) source(x,y,t-0.5*dt)),...
 %      buildNonSeparableSource(x,v,k,@(x,y) source(x,y,t))];
 if test == 1
-    BC.use = 0;    
+    BC.use = 0;
+    BC2.use = 0;
 else
     BC.use = 1;
 %     RHS = @(t,dt) ...
@@ -217,10 +220,38 @@ else
     for l=1:size(BC.cell1,1)
        BC.cell1{l,1} = FMWT*BC.cell1{l,1}; 
        BC.cell1{l,3} = FMWT*BC.cell1{l,3}; 
+       BC.cell2{l,1} = FMWT*BC.cell2{l,1}; 
+       BC.cell2{l,3} = FMWT*BC.cell2{l,3}; 
        BC.cell3{l,1} = FMWT*BC.cell3{l,1}; 
        BC.cell3{l,3} = FMWT*BC.cell3{l,3}; 
     end
+    
+    BC2.use = 1;
+    MM = zeros(size(BC.cell1{1,1},1),size(BC.cell1,1));
+    NN = zeros(size(BC.cell1{1,3},1),size(BC.cell1,1));
+    SS = zeros(size(BC.cell1,1));
+    for l=1:size(BC.cell1,1)
+       MM(:,l)  = BC.cell1{l,1}; 
+       NN(:,l)  = BC.cell1{l,3}; 
+       SS(l,l) = BC.cell1{l,2}; 
+    end
+    BC2.cell1 = {MM,SS,NN};
+    for l=1:size(BC.cell1,1)
+       MM(:,l)  = BC.cell2{l,1}; 
+       NN(:,l)  = BC.cell2{l,3}; 
+       SS(l,l) = BC.cell2{l,2}; 
+    end
+    BC2.cell2 = {MM,SS,NN};
+    for l=1:size(BC.cell1,1)
+       MM(:,l)  = BC.cell3{l,1}; 
+       NN(:,l)  = BC.cell3{l,3}; 
+       SS(l,l) = BC.cell3{l,2}; 
+    end
+    BC2.cell3 = {MM,SS,NN};
+        
 end
+BC = BC2;
+clear BC2
  
 %Get indicator at this timestep
 %BC = RHS(t,dt);
@@ -241,6 +272,8 @@ end
 %updateDLA = @(C,S,D) DLA2_HB_SSP(x,v,k,C,S,D,dt,A,BC-SC,FMWT);
 %updateDLA = @(C,S,D) DLA3_HB_SSP(x,v,k,C,S,D,dt,Awave,BC,FMWT);
 updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA4_TAN_FE(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA5_HB_SSP(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK2_woproj(x,v,k,C,S,D,dt,Awave,BC);
@@ -254,7 +287,10 @@ updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 
 if adapt
     %[C,S,D] = AdaptiveDLAResdiual_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    [C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
+    %[C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
+    [C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
+    %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
+    %[C,S,D] = AdaptiveDLAResdiual3_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
     %[C,S,D] = updateDLA(C,S,D);
     %[C,S,D] = initHierAdapt(C,S,D,hier_tol);
     %R = [R size(S,1)];
@@ -267,6 +303,7 @@ r = size(S,1);
 fprintf("r = %d\n",r);
 
 sing = svd(S);
+sigk = [sigk sing(end)];
 %rank1 = [rank1 log10(sing(1))-log10(sing(2))];
 %fprintf('r = %d\n',r);
 %fprintf('Min singular value of S: %e\n',min(sing));
@@ -302,7 +339,7 @@ else
 end
 
 if BC.use
-   LTEU1 = U - dt*applyMatA(U,Awave) - dt*BC.cell1{1,1}*BC.cell1{1,2}*BC.cell1{1,3}';
+   LTEU1 = U - dt*applyMatA(U,Awave);
    for l=1:size(BC.cell1,1)
         LTEU1 = LTEU1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
     end
@@ -374,14 +411,17 @@ if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
     figure(5)
     plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
     sgtitle('DLA Solution')
-    %figure(6)
-    %plotVec(x,v,k,uu,@(x,y) BCsoln(x,y,t));
-    %sgtitle('Full-Grid Solution')
+    figure(6)
+    plotVec(x,v,k,uu,@(x,y) BCsoln(x,y,t));
+    sgtitle('Full-Grid Solution')
     %figure(7)
     %plotVec(x,v,k,uu_lr,@(x,y) soln(x,y,t));
     %sgtitle('Full-Grid-Low-Rank Solution')
     %plotVec(x,v,k,convertMattoVec(x,v,k,(FMWT'*C(:,1:2))*S(1:2,1:2)*(FMWT'*D(:,1:2))'),@(x,y) soln(x,y,i*dt));
     %sgtitle('Truncated DLA Solution, r=2')
+    
+    %figure(6)
+    %semilogy(sigk);
     
     
     figure(8)
@@ -392,7 +432,9 @@ if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
     %Xval = 1:numel(absC);
     %plot(Xval,absC,Xval,absD);   
     %semilogy(1:size(myhist,2),myhist(5,:),1:size(myhist,2),myhist(4,:))
-    semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:))
+    if fullgrid
+        semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:))
+    end
     yyaxis right
     plot(myhist(6,:),myhist(2,:))
     yyaxis left
@@ -417,7 +459,7 @@ end
 end
 
 
-if adapt && plotbool
+if adapt && plotbool  && 0
     figure(9)
     plot((1:numel(R))-1,R)
     title('Adaptive Rank plot');
@@ -455,6 +497,14 @@ if savebool
     
     
 end
+
+if ~exist('sigK','var')
+    sigK = sigk;
+elseif size(sigk,2) == size(sigK,2)
+    sigK = [sigK;sigk];
+end
+
+
 
 function z = soln_func(x,v,t,u0)
     %Follow characteristics backwards to initial condition        

@@ -1,6 +1,7 @@
-function [C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,tol,Awave,BC,FMWT)
+function [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC,FMWT)
 %Adaptive algorithm for DLA update
 
+p = 4;
 r = size(S,1);
 fprintf('-- Adaptive: r = %d\n',r);
 C0 = C; S0 = S; D0 = D;
@@ -14,53 +15,66 @@ toc
 Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp',C,D);
 Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp',C,D);
 tic
-[C1,norm2,D1] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),1);
-toc
-%[C1,norm2,D1] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),5);
-normF = norm2*sqrt(6*r)/2;
-
-% tic
-% Q = rand(size(C,1),5);
-% Q = Rnt(Q);
-% [Q,~] = qr(Q,0);
-% B = Rt(Q)';
-% [UU,SS,VV] = svd(B,'econ');
-toc
-% Afun = @(X) AtranspA(C0,S0,D0,Awave,dt,BC,X,C,D);
-% X0 = rand(size(C,1),1); X0 = X0/norm(X0);
-% tic
-% [V2,lm2,failureFlag] = blopex_matlab(X0,Afun,[],[],[],1e-8,20,0);
-% toc
-% Afun = @(X) -AtranspA(C0,S0,D0,Awave,dt,BC,X,C,D);
-% tic
-% [V3,lm3] = eigs(Afun,size(C,1),1);
-% toc
-fprintf('-- Adaptive: Residual computation time: %f\n',toc);
-fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',sqrt(6*r)*norm2,tol);
+Q = rand(size(C,1),p);
+Q = Rnt(Q);
+[Q,~] = qr(Q,0);
+B = Rt(Q)';
+[Utmp,S1,D1] = svd(B,'econ');
+C1 = Q*Utmp;
+time1 = toc;
+normF = norm(diag(S1),2) + sqrt(max([6*r-5,1]))*S1(end,end);
+%norm2 = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),p);
+fprintf('-- Adaptive: Residual computation time: %f\n',time1);
+fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',normF,tol);
 if normF > tol %Add rank
+    %fprintf('----!!! error is %e \n',norm(diag(S1(1:5,1:5)-norm2(1:5))));
     fprintf('-- Adaptive: Increasing rank\n');
-    S1 = norm2;
-    rr = 1;
     tolflag = true;
-    while tolflag == true
-        if rr+5 >= size(C,1)
-            tolflag = false;
-        end       
-        [Ct,St,Dt] = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D) ...
-            - LReval(C1,S1,D1,x,trans),[1,1]*size(C,1),5,'largest','FailureTreatment','drop');
-        rr = rr + size(St,1);
-        norm2 = St(end:end);
-        normF =  norm2*sqrt(6*r)/2;
+    dS1 = diag(S1);
+    for i=2:p/2 %Seeing if the vectors I created are sufficient
+        normF = norm(dS1(i:p/2),2) + sqrt(max([6*r-i,1]))*S1(p/2,p/2);
         if normF < tol
             tolflag = false;
+            break
         end
-        S1 = diag([diag(S1);diag(St)]);
-        C1 = [C1 Ct];
-        D1 = [D1 Dt];
     end
-    % % RR = computeFullGrid(C0,S0,D0,Awave,dt,BC) - C*S*D';
-    % % [C1,S1,D1] = svd(RR);
-    % % rr = sum(diag(S1) > tol) + 1; C1 = C1(:,1:rr); S1 = S1(1:rr,1:rr); D1 = D1(:,1:rr);
+    if tolflag
+        q = i;
+    else
+        q = i-1;
+    end
+    rr = q;
+    S1 = S1(1:q,1:q);
+    C1 = C1(:,1:q);
+    D1 = D1(:,1:q);
+    while tolflag == true
+        if rr+p/2 >= size(C,1)
+            tolflag = false;
+        end       
+        Q = rand(size(C,1),p);
+        Q = Rnt(Q) - LReval(C1,S1,D1,Q,'notransp');
+        [Q,~] = qr(Q,0);
+        B = Rt(Q)' - LReval(C1,S1,D1,Q,'transp')';
+        [Utmp,St,Dt] = svd(B,'econ');
+        Ct = Q*Utmp;
+        for i=1:p/2 %Seeing if the vectors I created are sufficient
+            dSt = diag(St);
+            normF = norm(dSt(i:p/2),2) + sqrt(max([6*r-rr-i,1]))*St(p/2,p/2);
+            if normF < tol
+                tolflag = false;
+                break
+            end
+        end
+        if tolflag
+            q = i;
+        else
+            q = i-1;
+        end
+        rr = rr + q;
+        S1 = diag([diag(S1);diag(St(1:q,1:q))]);
+        C1 = [C1 Ct(:,1:q)];
+        D1 = [D1 Dt(:,1:q)];
+    end
     fprintf('-- Adaptive: Residual threshold requires %d new basis vectors\n',rr);
     [C,R_C] = qr([C C1],0);
     [D,R_D] = qr([D D1],0);

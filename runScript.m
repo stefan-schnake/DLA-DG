@@ -25,7 +25,7 @@ savebool = false;
 %%Which test to run:
 % test = 1 is spinning box
 % test = 2 is smooth solution
-test = 1;
+test = 2;
 
 %Set CFL
 CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);

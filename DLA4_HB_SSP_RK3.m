@@ -17,15 +17,15 @@ F = @(g) g - dt*applyAonK(g,D,Awave);
 if BC.use
     F1 = F(K);
     for l=1:NN
-        F1 = F1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
+        F1 = F1 -       dt*BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
     end
     F2 = (3/4)*K + (1/4)*F(F1);
     for l=1:NN
-        F2 = F2 - 1/4*dt*BC.cell3{l,1}*BC.cell3{l,2}*(BC.cell3{l,3}'*D);
+        F2 = F2 - (1/4)*dt*BC.cell3{l,1}*BC.cell3{l,2}*(BC.cell3{l,3}'*D);
     end
     K  = (1/3)*K + (2/3)*F(F2);
     for l=1:NN
-        K = K - 2/3*dt*BC.cell3{l,1}*BC.cell3{l,2}*(BC.cell3{l,3}'*D);
+        K  = K  - (2/3)*dt*BC.cell2{l,1}*BC.cell2{l,2}*(BC.cell2{l,3}'*D);
     end
 else
     F1 = F(K);
@@ -46,15 +46,15 @@ F = @(g) g - dt*applyAonL(g,C,Awave);
 if BC.use
     F1 = F(L);
     for l=1:NN
-        F1 = F1 - dt*BC.cell1{l,3}*BC.cell1{l,2}'*(BC.cell1{l,1}'*C);
+        F1 = F1 -       dt*BC.cell1{l,3}*BC.cell1{l,2}'*(BC.cell1{l,1}'*C);
     end
     F2 = (3/4)*L + (1/4)*F(F1);
     for l=1:NN
-        F2 = F2 - 1/4*dt*BC.cell3{l,3}*BC.cell3{l,2}'*(BC.cell3{l,1}'*C);
+        F2 = F2 - (1/4)*dt*BC.cell3{l,3}*BC.cell3{l,2}'*(BC.cell3{l,1}'*C);
     end
-    L  = (1/3)*L + (2/3)*F(F2); 
+    L  = (1/3)*L + (2/3)*F(F2);
     for l=1:NN
-        L = L - 2/3*dt*BC.cell2{l,3}*BC.cell2{l,2}'*(BC.cell2{l,1}'*C);
+        L  = L  - (2/3)*dt*BC.cell2{l,3}*BC.cell2{l,2}'*(BC.cell2{l,1}'*C);
     end
 else
     F1 = F(L);
@@ -75,15 +75,15 @@ F = @(g) g - dt*applyAonS(g,C1,D1,Awave);
 if BC.use
     F1 = F(S_);
     for l=1:NN
-        F1 = F1 - dt*(C1'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D1);
+        F1 = F1 -       dt*(C1'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D1);
     end
     F2 = (3/4)*S_ + (1/4)*F(F1);
     for l=1:NN
-        F2 = F2 - 1/4*dt*(C1'*BC.cell3{l,1})*BC.cell3{l,2}*(BC.cell3{l,3}'*D1);
+        F2 = F2 - (1/4)*dt*(C1'*BC.cell3{l,1})*BC.cell3{l,2}*(BC.cell3{l,3}'*D1);
     end
     S1 = (1/3)*S_ + (2/3)*F(F2);
     for l=1:NN
-        S1 = S1 - 2/3*dt*(C1'*BC.cell2{l,1})*BC.cell2{l,2}*(BC.cell2{l,3}'*D1);
+        S1 = S1 - (2/3)*dt*(C1'*BC.cell2{l,1})*BC.cell2{l,2}*(BC.cell2{l,3}'*D1);
     end    
 else
     F1 = F(S_);
