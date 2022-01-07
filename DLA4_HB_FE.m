@@ -25,6 +25,11 @@ end
 
 %Run QR to get new K=C*S;
 [C1,R1] = qr(K,0);
+%[C1,R1] = qr([C K],0);
+%K = K - C*(C'*K);
+%[C_,sigma,~] = svd(K,'econ');
+%rr = sum(diag(sigma) > 1e-14);
+%C1 = [C C_(:,1:rr)];
 M = C1'*C;
 
 
@@ -45,6 +50,11 @@ end
 
 %Run QR to get new L=D*S';
 [D1,R2] = qr(L,0);
+%[D1,R2] = qr([D L],0);
+%L = L - D*(D'*L);
+%[D_,sigma,~] = svd(L,'econ');
+%rr = sum(diag(sigma) > 1e-14);
+%D1 = [D D_(:,1:rr)];
 N = D1'*D;
 
 %%%Update S

@@ -153,6 +153,8 @@ else
     for l=1:size(BC.cell1,1)
        BC.cell1{l,1} = FMWT*BC.cell1{l,1}; 
        BC.cell1{l,3} = FMWT*BC.cell1{l,3}; 
+       BC.cell2{l,1} = FMWT*BC.cell2{l,1}; 
+       BC.cell2{l,3} = FMWT*BC.cell2{l,3}; 
        BC.cell3{l,1} = FMWT*BC.cell3{l,1}; 
        BC.cell3{l,3} = FMWT*BC.cell3{l,3}; 
     end

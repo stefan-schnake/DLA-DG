@@ -1,13 +1,19 @@
-function [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC,FMWT)
+function [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC)
 %Adaptive algorithm for DLA update
 
-p = 4;
+%Parameters
+p = 3;
+pp = p+7;
+delta = 0.2;
+
 r = size(S,1);
 fprintf('-- Adaptive: r = %d\n',r);
 C0 = C; S0 = S; D0 = D;
 %Update
 tic
 [C,S,D] = DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
+%[C,S,D] = DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
+%[C,S,D] = DLA5_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %Compute SVD of S
 %[S_C,Sig,S_D] = svd(S);
 toc
@@ -15,24 +21,24 @@ toc
 Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp',C,D);
 Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp',C,D);
 tic
-Q = rand(size(C,1),p);
+Q = rand(size(C,1),pp);
 Q = Rnt(Q);
 [Q,~] = qr(Q,0);
 B = Rt(Q)';
 [Utmp,S1,D1] = svd(B,'econ');
 C1 = Q*Utmp;
 time1 = toc;
-normF = norm(diag(S1),2) + sqrt(max([6*r-5,1]))*S1(end,end);
+normF = norm(diag(S1),2) + sqrt(max([6*r-p,1]))*S1(end,end);
 %norm2 = svds(@(x,trans) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,trans,C,D),[1,1]*size(C,1),p);
+%fprintf('----!!! error is %e \n',norm(diag(S1(1:p,1:p)-norm2(1:p))));
 fprintf('-- Adaptive: Residual computation time: %f\n',time1);
 fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',normF,tol);
 if normF > tol %Add rank
-    %fprintf('----!!! error is %e \n',norm(diag(S1(1:5,1:5)-norm2(1:5))));
     fprintf('-- Adaptive: Increasing rank\n');
     tolflag = true;
     dS1 = diag(S1);
-    for i=2:p/2 %Seeing if the vectors I created are sufficient
-        normF = norm(dS1(i:p/2),2) + sqrt(max([6*r-i,1]))*S1(p/2,p/2);
+    for i=2:p %Seeing if the vectors I created are sufficient
+        normF = norm(dS1(i:p),2) + sqrt(max([6*r-i,1]))*S1(p,p);
         if normF < tol
             tolflag = false;
             break
@@ -48,18 +54,18 @@ if normF > tol %Add rank
     C1 = C1(:,1:q);
     D1 = D1(:,1:q);
     while tolflag == true
-        if rr+p/2 >= size(C,1)
+        if rr+p >= size(C,1)
             tolflag = false;
         end       
-        Q = rand(size(C,1),p);
+        Q = rand(size(C,1),pp);
         Q = Rnt(Q) - LReval(C1,S1,D1,Q,'notransp');
         [Q,~] = qr(Q,0);
         B = Rt(Q)' - LReval(C1,S1,D1,Q,'transp')';
         [Utmp,St,Dt] = svd(B,'econ');
         Ct = Q*Utmp;
-        for i=1:p/2 %Seeing if the vectors I created are sufficient
+        for i=1:p %Seeing if the vectors I created are sufficient
             dSt = diag(St);
-            normF = norm(dSt(i:p/2),2) + sqrt(max([6*r-rr-i,1]))*St(p/2,p/2);
+            normF = norm(dSt(i:p),2) + sqrt(max([6*r-rr-i,1]))*St(p,p);
             if normF < tol
                 tolflag = false;
                 break
@@ -86,13 +92,13 @@ if normF > tol %Add rank
     S = Sig(1:r,1:r);
     D = D*S_D(:,1:r);
     fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,S(end,end));
-elseif normF < 0.5*tol %Need to decrease rank
+elseif normF < delta*tol %Need to decrease rank
     fprintf('-- Adaptive: Decreasing rank\n');
     [S_C,Sig,S_D] = svd(S);
     Sig = diag(Sig);
     rr = r;
     for i=r:-1:1
-        if sum(Sig(i:r)) + normF >= 0.5*tol
+        if sum(Sig(i:r)) + normF >= delta*tol
             rr = i;
             break
         end

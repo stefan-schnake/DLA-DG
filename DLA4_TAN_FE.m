@@ -13,36 +13,48 @@ if BC.use
     NN = size(BC.cell1,1);
 end
 
-ZD = -dt*applyAonK(C*S,D,Awave);
+ZD = -applyAonK(C*S,D,Awave);
 if BC.use
 for l=1:NN
-    ZD = ZD - dt*BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
+    ZD = ZD - BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
 end
 end
 [C1,RC] = qr([C ZD],0);
+%C1 = [C ZD];
 
-ZtC = -dt*applyAonL(D*S',C,Awave);
+ZtC = -applyAonL(D*S',C,Awave);
 if BC.use
 for l=1:NN
-    ZtC = ZtC - dt*BC.cell1{l,3}*BC.cell1{l,2}*(BC.cell1{l,1}'*C);
+    ZtC = ZtC - BC.cell1{l,3}*BC.cell1{l,2}'*(BC.cell1{l,1}'*C);
 end
 end
 [D1,RD] = qr([D ZtC],0);
+%D1 = [D ZtC];
 
-S_ = S + dt*applyAonS(S,C,D,Awave);
+S_ = -applyAonS(S,C,D,Awave);
 if BC.use
 for l=1:NN
-    S_ = S_ + dt*(C'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
+    S_ = S_ - (C'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
 end
 end
-S1 = RC*[S_,eye(r);eye(r),0*S]*RD';
-[SU,S1,SV] = svd(S1);
+%S1 = RC*[S_,eye(r);eye(r),0*S]*RD';
+%[SU,S1,SV] = svd(S1);
 
-C = C1*SU(:,1:r);
-S = S1(1:r,1:r);
-D = D1*SV(:,1:r);
+%C0 = C; S0 = S; D0 = D;
+%C = C1; S = S1; D = D1;
+%r = size(S1,1);
+%r = size(S1);
 
-toc
+%C = C1*SU(:,1:r);
+%S = S1(1:r,1:r);
+%D = D1*SV(:,1:r);
+
+C = C1;
+D = D1;
+%S = [S-dt*S_,dt*eye(r);dt*eye(r),zeros(r)];
+S = RC*[S-dt*S_,dt*eye(r);dt*eye(r),zeros(r)]*RD';
+
+tt = toc;
 end
 
 

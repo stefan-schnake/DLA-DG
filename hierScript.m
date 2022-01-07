@@ -1,20 +1,14 @@
 
-N = 512;
+N = 256;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
 k = 0;
 
-r = 20;
+r = 5;
 
 r_cut = 1;
-
-plotbool = true;
-savebool = false;
-
-adapt  = true;
-adapt_tol = 5e-4;
 
 test = 1;
 
@@ -25,12 +19,23 @@ CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);
 %dt = 0.8*CFL;
 %CFL = (5/4)*(1/73536);
 %dt = 0.9*CFL;
-dt = pi/(8*ceil(1/CFL));
+%dt = pi/(8*ceil(1/CFL));
+if exist('frac','var') == 0
+    frac = 1/2;
+end
+dt = frac*CFL;
 %dt = 0.05;
 %dt = 0.05;
 
-%T = .5;
-T = pi;
+moviebool = false;
+plotbool  = false;
+savebool  = false;
+
+adapt  = false;
+adapt_tol = 1e-3;
+
+T = 1;
+%T = pi;
 %T = 3.5;
 
 %%%-------------------------------------------
@@ -45,6 +50,12 @@ clf('reset')
 %clf('reset')
 figure(8)
 clf('reset')
+end
+
+if moviebool
+    myVideo = VideoWriter('movie.mp4','MPEG-4');
+    myVideo.FrameRate = 1;
+    open(myVideo);
 end
 
 %L = buildLDGMatrixAlt(x,v,k);
@@ -69,7 +80,9 @@ end
 %A2 = LDG;
 
 if test == 1
-init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+%init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+box = @(x,y) (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+init = @(x,y) soln_func(x,y,0,box);
 %init = @(x,y) x.^2.*y + x;
 %init = @(x,y) exp(10*(-(x-0.7).^2-(y-0.4)^2));
 %init = @(x,y) 16*(x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2).*(1/4-x.^2).*(1/4-y.^2);
@@ -135,9 +148,6 @@ disp("Please select a test");
 return 
 end
 
-%u0 = buildSeparableSource(x,v,k,@(x) cos(pi*x),@(y) cos(pi*y));
-%u0 = buildSeparableSource(x,v,k,@(x) exp(x),@(y) cos(y));
-%u0 = buildSeparableSource(x,v,k,@(x) (x > -1/2).*(x < 1/2),@(y) (y > -1/2).*(y < 1/2));
 u0 = buildNonSeparableSource(x,v,k,init);
 u = u0;  
 
@@ -145,12 +155,6 @@ sigk = []; %smallest singular value
 
 one = buildSeparableSource(x,v,k,@(x) 0*x+1,@(v) 0*v+1);
 cons = one'*u0;
-
-%Run a few timesteps to smooth the solution out
-%for i=1:5
-%u = u + dt*LDG*u;
-%end
-
 
 matu = convertVectoMat(x,v,k,u);
 [U,Sig,V] = svd(matu);
@@ -167,52 +171,42 @@ if adapt
 else
     R = [r]; 
 end
-%r = 40;
 C = C0(:,1:r);
 S = S0(1:r,1:r);
 D = D0(:,1:r);
 
-%myhist = [0;r;S0(r,r);norm(u-uu)];
 myhist = [];
 
-%Convert from realspace to waveletspace
-%C = FMWT*C;
-%D = FMWT*D;
+%Used as storage for multistep
+FC = [];FD = [];FS = [];
 
 U = C*S*D';
 UU = U;
-%u = convertMattoVec(x,v,k,FMWT'*C*S*D'*FMWT);
+UU_RK3 = U;
 uu = u;
 i = 0;
 t = 0;
-%while i < 5
+
+%% Time iteration
+%while i < 1
 while (t+dt <= T+1e-9) 
 i = i+1;
 t0 = t;
 t = t + dt;
 lastplot = 0;
 if t+dt > T+1e-9; lastplot=1; end
-fprintf("-------------------------------------------------------\n");
-fprintf("i=%d; t = %f\n",i,dt*i);
-%BC = [buildDirichletBC(x,v,k,@(x,y) soln(x,y,t-dt)), ...
-%      buildDirichletBC(x,v,k,@(x,y) soln(x,y,t-0.5*dt)), ...
-%      buildDirichletBC(x,v,k,@(x,y) soln(x,y,t))];
-%SC  = [buildNonSeparableSource(x,v,k,@(x,y) source(x,y,t-dt)),...
-%      buildNonSeparableSource(x,v,k,@(x,y) source(x,y,t-0.5*dt)),...
-%      buildNonSeparableSource(x,v,k,@(x,y) source(x,y,t))];
+if mod(i,ceil(T/(20*dt))) == 0 || i == 1
+    fprintf("-------------------------------------------------------\n");
+    fprintf("i=%d; t = %f\n",i,dt*i);
+    fprintf("r = %d\n",r);
+end
+
+%% Create BC
 if test == 1
     BC.use = 0;
     BC2.use = 0;
 else
     BC.use = 1;
-%     RHS = @(t,dt) ...
-%     [buildDirichletBC(x,v,k,@(x,y) BCsoln(x,y,t-dt)), ...
-%      buildDirichletBC(x,v,k,@(x,y) BCsoln(x,y,t-0.5*dt)), ...
-%      buildDirichletBC(x,v,k,@(x,y) BCsoln(x,y,t))] - ...
-%     [buildNonSeparableSource(x,v,k,@(x,y) source_vec(x,y,t-dt)),...
-%      buildNonSeparableSource(x,v,k,@(x,y) source_vec(x,y,t-0.5*dt)),...
-%      buildNonSeparableSource(x,v,k,@(x,y) source_vec(x,y,t))];
-%     BC.vec = RHS(t,dt);
     BC.cell1 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t-dt));buildSeparableSourceMat(x,v,k,t-dt,source)];
     BC.cell2 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t-0.5*dt));buildSeparableSourceMat(x,v,k,t-0.5*dt,source)];
     BC.cell3 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t));buildSeparableSourceMat(x,v,k,t,source)];
@@ -252,168 +246,79 @@ else
 end
 BC = BC2;
 clear BC2
- 
-%Get indicator at this timestep
-%BC = RHS(t,dt);
-%sourceFMat = FMWT*convertVectoMat(x,v,k,BC(:,1))*FMWT';
-%tic;
-%indi = svd(computeResidualMatrix(C,S,D,Awave,sourceFMat));
-%%indi = svds(@(x,trans) computeResidual(C,S,D,Awave,sourceFMat,x,trans),[1,1]*size(C,1),size(C,1));
-%time1 = toc;
-%fprintf('Indicator is %e and took %f seconds\n',indi(1),time1);
 
-%BC = buildDirichletBC(x,v,k,@(x,y) soln(x,y,i*dt));
-      
-%BC_old = buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-1)*dt));
-%BC_hlf = buildDirichletBC(x,v,k,@(x,y) soln(x,y,(i-1/2)*dt));
 
-%updateDLA = @(C,S,D) DLA(x,v,k,C,S,D,dt,A,A2,BC);
-%updateDLA = @(C,S,D) DLA_CN(x,v,k,C,S,D,dt,A,A2,BC);
-%updateDLA = @(C,S,D) DLA2_HB_SSP(x,v,k,C,S,D,dt,A,BC-SC,FMWT);
-%updateDLA = @(C,S,D) DLA3_HB_SSP(x,v,k,C,S,D,dt,Awave,BC,FMWT);
-updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA4_TAN_FE(x,v,k,C,S,D,dt,Awave,BC);
+%% Specify method
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA5_HB_SSP(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA4_HB_SSP_RK2_woproj(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA3_HB_FE(x,v,k,C,S,D,dt,Awave,BC,FMWT);
-%updateDLA = @(C,S,D) DLA3_HB_FE_Iteration(x,v,k,C,S,D,dt,Awave,BC,FMWT);
-%updateDLA = @(C,S,D) DLA2_HB_BE(x,v,k,C,S,D,dt,A,BC-SC,FMWT);
-%updateDLA = @(C,S,D) DLA2_HB_CN(x,v,k,C,S,D,dt,A,BC-SC,FMWT);
-%updateDLA = @(C,S,D) DLA2_SSP(x,v,k,C,S,D,dt,A,BC);
-%updateDLA = @(C,S,D) DLA2_BE(x,v,k,C,S,D,dt,A,BC);
+%updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
+updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA_UC_Adapt_RK3(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA_UC_SYS_RK2(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA_UC_EXP(x,v,k,C,S,D,dt,Awave,BC);
 
 
 if adapt
-    %[C,S,D] = AdaptiveDLAResdiual_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    %[C,S,D] = AdaptiveDLAResdiual2_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    [C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = AdaptiveDLAResdiual3_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC,FMWT);
-    %[C,S,D] = updateDLA(C,S,D);
-    %[C,S,D] = initHierAdapt(C,S,D,hier_tol);
-    %R = [R size(S,1)];
+    [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    %[C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
 else
-    [C,S,D] = updateDLA(C,S,D);
-    
+    [C,S,D] = updateDLA(C,S,D);  
 end
 R = [R size(S,1)];
 r = size(S,1);
-fprintf("r = %d\n",r);
 
-sing = svd(S);
-sigk = [sigk sing(end)];
-%rank1 = [rank1 log10(sing(1))-log10(sing(2))];
-%fprintf('r = %d\n',r);
-%fprintf('Min singular value of S: %e\n',min(sing));
 
 %% Full-grid run
 fullgrid = 1;
 if fullgrid
-%uu = pcg(speye(size(LDG))+dt*LDG,uu,1e-13);
-%%%BE
-%uu = (speye(size(A))+dt*A)\(uu - dt*(BC(:,3)-SC(:,3)));
-%%%CN
-%uu = (speye(size(A))+dt/2*A)\( (speye(size(A))-dt/2*A)*uu - 0.5*dt*(BC(:,1)-SC(:,1)+BC(:,3)-SC(:,3)));
-%uu = (speye(size(LDG))+dt/2*A)\( (speye(size(LDG))-dt/2*A)*uu );
-%uu = uu - dt*A*uu;
-%uu = expm(-A*(i*dt))*u0;
-%%%SSP-RK3
-%u1 = uu - dt*A*uu - dt*BC(:,1);
-%u2 = (3/4)*uu + (1/4)*(u1-dt*A*u1-dt*BC(:,3));
-%uu = (1/3)*uu + (2/3)*(u2-dt*A*u2-dt*BC(:,2));
-%uu = u1;
 
-if BC.use
-    U1 = UU - dt*applyMatA(UU,Awave);
-    for l=1:size(BC.cell1,1)
-        U1 = U1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
-    end
-    %UU = (1/2)*UU + (1/2)*(U1-dt*applyMatA(U1,Awave)-dt*BC.vec(:,3));
-    UU = U1;
-else
-    U1 = UU - dt*applyMatA(UU,Awave);
-    %UU = (1/2)*UU + (1/2)*(U1-dt*applyMatA(U1,Awave));
-    UU = U1;
-end
+LTEU = MAT_SSP_RK2(U,dt,Awave,BC);
 
-if BC.use
-   LTEU1 = U - dt*applyMatA(U,Awave);
-   for l=1:size(BC.cell1,1)
-        LTEU1 = LTEU1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
-    end
-   %LTEU = (1/2)*U + (1/2)*(LTEU1-dt*applyMatA(LTEU1,Awave)-dt*BC.vec(:,3));
-   LTEU = LTEU1;
-else
-   LTEU1 = U - dt*applyMatA(U,Awave);
-   %LTEU = (1/2)*U + (1/2)*(LTEU1-dt*applyMatA(LTEU1,Awave));
-   LTEU = LTEU1;
-end
+%UU_FE = UU - dt*applyMatA(UU,Awave);
+%UU_RK2 = MAT_SSP_RK2(UU,dt,Awave,BC);
+%UU_RK3 = MAT_SSP_RK3(UU,dt,Awave,BC);
+%FU = -applyMatA(UU,Awave);
+UU = MAT_SSP_RK3(UU,dt,Awave,BC);
+%UU = MAT_SSP_RK2(UU,dt,Awave,BC);
+%UU = computeMatrixExpon(UU,dt,Awave);
+
 U = C*S*D';
 LTE = norm(LTEU-U,'fro');
 
-%
-
 end
 
-
-
-%LTEu1 = u - dt*A*u - dt*BC(:,1);
-%LTEu2 = (3/4)*u + (1/4)*(LTEu1-dt*A*LTEu1-dt*BC(:,3));
-%LTEu  = (1/3)*u + (2/3)*(LTEu2-dt*A*LTEu2-dt*BC(:,2));
-%LTEu = LTEu1;
-%if BC.use
-%    LTEu1 = u - dt*A*u - dt*BC.vec(:,1);
-%    LTEu = (1/2)*u + (1/2)*(LTEu1-dt*A*LTEu1-dt*BC.vec(:,3));
-%else
-%    LTEu1 = u - dt*A*u;
-%    LTEu = (1/2)*u + (1/2)*(LTEu1-dt*A*LTEu1);
-%end
-%LTEu = LTEu1;
-
-%%%FE
-%uu = uu - dt*A*uu - dt*RHS_t(:,1);
-
-%u = convertMattoVec(x,v,k,(FMWT'*C)*S*(FMWT'*D)');
-%LTE = norm(LTEu-u);
-
-
-%dis_l2 = norm(u-uu);
-
-%Full Grid Low Rank
-%[UU,SS,VV] = svd(convertVectoMat(x,v,k,uu));
-%r_cut = r;
-%UU_lr = UU(:,1:r_cut);
-%SS_lr = SS(1:r_cut,1:r_cut);
-%VV_lr = VV(:,1:r_cut);
-%uu_lr = convertMattoVec(x,v,k,UU_lr*SS_lr*VV_lr');
-%SS = diag(SS);
-
-%myhist [i;rank;smallest singular value;LTE;residual;time];
 if fullgrid
-myhist = [myhist [i;r;sing(end);LTE;norm(U-UU,'fro');t]];
+    [UUU,SSS,VVV] = svd(UU);
+    UU_lr = UUU(:,1:r)*SSS(1:r,1:r)*VVV(:,1:r)';
+    %myhist = [myhist [i;r;sing(end);LTE;norm(U-UU,'fro');t]];
+    myhist = [myhist [i;r;sing(end);LTE;norm(U-UU,'fro');t;norm(UU-UU_lr,'fro')]];
 else
-myhist = [myhist [i;r;sing(end);norm(U,'fro');1e-5;t]];
+    myhist = [myhist [i;r;sing(end);norm(U,'fro');1e-5;t]];
 end
 
 %% Error Calc and plotting
-%fprintf('-- Norm of BE: %e\n',norm(uu));
-%fprintf('- Errors:\n');
-%fprintf('-- Error of DLA   and L2 Proj: %e\n',norm(u-u_sol))
-%fprintf('-- Error of BE    and L2 Proj: %e\n',norm(uu-u_sol))
-%fprintf('-- Error of BE_lr and L2 Proj: %e\n',norm(uu_lr-u_sol))
-if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
-%if plotbool
+if plotbool && ( mod(i,ceil(T/(20*dt))) == 0 || i == 1 || lastplot)
+%if plotbool && lastplot
+    
+
+
     u = convertMattoVec(x,v,k,FMWT'*C*S*D'*FMWT);
+    %UU = computeMatrixExpon(C0*S0*D0',0.03,Awave);
+    %load UU_EXP; UU = UU_EXP;
     uu = convertMattoVec(x,v,k,FMWT'*UU*FMWT);
     %u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
     figure(5)
-    plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
-    sgtitle('DLA Solution')
-    figure(6)
-    plotVec(x,v,k,uu,@(x,y) BCsoln(x,y,t));
-    sgtitle('Full-Grid Solution')
+    %plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
+    %sgtitle('DLA Solution')
+    plotVecDualDiscrete(x,v,k,u,uu,myhist);
+    sgtitle("DLRA vs Full Rank - t = " + num2str(t));
+    
+    if moviebool
+        frame = getframe(gcf);
+        writeVideo(myVideo,frame);
+    end
+    %figure(6)
+    %plotVec(x,v,k,uu,@(x,y) BCsoln(x,y,t));
+    %sgtitle('Full-Grid Solution')
     %figure(7)
     %plotVec(x,v,k,uu_lr,@(x,y) soln(x,y,t));
     %sgtitle('Full-Grid-Low-Rank Solution')
@@ -433,12 +338,14 @@ if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
     %plot(Xval,absC,Xval,absD);   
     %semilogy(1:size(myhist,2),myhist(5,:),1:size(myhist,2),myhist(4,:))
     if fullgrid
-        semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:))
+        %semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:))
+        semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:),myhist(6,:),myhist(7,:))
     end
     yyaxis right
     plot(myhist(6,:),myhist(2,:))
     yyaxis left
-    legend({'LTE','u-uu','rank'},'location','best')
+    %legend({'LTE','u-uu','rank'},'location','best')
+    legend({'LTE','u-uu','uu-uu_lr','rank'},'location','best')
     
 
     %semilogy(sing);
@@ -446,16 +353,11 @@ if plotbool && ( mod(i,ceil(T/(10*dt))) == 0 || i == 1 || lastplot)
     drawnow
     aa = 2;
 end
+end
 
-%err = u-u_sol;
-%[Cerr,Serr,Derr] = svd(convertVectoMat(x,v,k,err));
-%Serr = diag(Serr);
-%Cerr = FMWT*Cerr;
-%Derr = FMWT*Derr;
-%figure(10)
-%NN = size(Cerr,1);
-%plot(1:NN,sum(abs(Cerr)),1:NN,sum(abs(Derr)));
-%disp(Serr(1:10)');
+
+if moviebool
+    close(myVideo);
 end
 
 
@@ -514,11 +416,52 @@ function z = soln_func(x,v,t,u0)
     z = u0(x0,v0);
 end
 
-function u = update_RK3_SSP(u,dt,A,SF)
+function U = MAT_FE(U,dt,Acell,BC)
     %Update by SSP-RK3
-    u1 = u - dt*A*u - dt*SF(:,1);
-    u2 = (3/4)*u + (1/4)*(u1-dt*A*u1-dt*SF(:,3));
-    u  = (1/3)*u + (2/3)*(u2-dt*A*u2-dt*SF(:,2));
+    U = U - dt*applyMatA(U,Acell);
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U = U - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
+        end
+    end
+end
+
+function U = MAT_SSP_RK2(U,dt,Acell,BC)
+    %Update by SSP-RK3
+    U1 = U - dt*applyMatA(U,Acell);
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U1 = U1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
+        end
+    end
+    U = (1/2)*U + (1/2)*(U1-dt*applyMatA(U1,Acell));
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U = U - (1/2)*dt*BC.cell3{l,1}*BC.cell3{l,2}*BC.cell3{l,3}';
+        end
+    end
+end
+
+function U = MAT_SSP_RK3(U,dt,Acell,BC)
+    %Update by SSP-RK3
+    U1 = U - dt*applyMatA(U,Acell);
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U1 = U1 - dt*BC.cell1{l,1}*BC.cell1{l,2}*BC.cell1{l,3}';
+        end
+    end
+    U2 = (3/4)*U + (1/4)*(U1-dt*applyMatA(U1,Acell));
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U2 = U2 - (1/4)*dt*BC.cell3{l,1}*BC.cell3{l,2}*BC.cell3{l,3}';
+        end
+    end
+    U  = (1/3)*U + (2/3)*(U2-dt*applyMatA(U2,Acell));
+    if BC.use
+        for l=1:size(BC.cell1,1)
+        U  = U  - (2/3)*dt*BC.cell2{l,1}*BC.cell2{l,2}*BC.cell2{l,3}';
+        end
+    end
 end
 
 function LU = applyMatA(U,Awave)
@@ -553,4 +496,19 @@ end
 
 function PU = calcTanProj(U,C,D)
     PU = (U*D)*D' - C*(C'*U*D)*D' + C*(C'*U);
+end
+
+function U = computeMatrixExpon(U,t,Awave)
+    u = U;
+    for i=1:20
+        u_temp = zeros(size(u));
+        for l=1:size(Awave,1)
+            u_temp = u_temp - Awave{l,1}*u*Awave{l,2}';
+        end
+        u = u_temp;
+        U = U + 1/factorial(i)*t^i*u;
+        if 1/factorial(i)*t^i*norm(u,'fro') < 1e-15
+            break
+        end
+    end
 end

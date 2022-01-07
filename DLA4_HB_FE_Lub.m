@@ -24,7 +24,7 @@ else
 end
 
 %Run QR to get new K=C*S;
-[C1,R1] = qr([K C],0);
+[C1,R1] = qr([C K],0);
 M = C1'*C;
 
 
@@ -44,7 +44,7 @@ end
 
 
 %Run QR to get new L=D*S';
-[D1,R2] = qr([L D],0);
+[D1,R2] = qr([D L],0);
 N = D1'*D;
 
 %%%Update S
@@ -60,7 +60,6 @@ if BC.use
 else
     S1 = F(S_);
 end
-
 
 C = C1;
 S = S1;
