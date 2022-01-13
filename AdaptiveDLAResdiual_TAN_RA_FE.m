@@ -4,17 +4,53 @@ function [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC)
 %Parameters
 p = 3;
 pp = p+7;
-delta = 0.9;
+delta = 0.1;
 
 r = size(S,1);
 fprintf('-- Adaptive: r = %d\n',r);
 C0 = C; S0 = S; D0 = D;
 %Update
+tic
 [C,S,D] = DLA4_TAN_FE(x,v,k,C,S,D,dt,Awave,BC);
-%fprintf(' DLA update time: %f\n',toc);
-Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp');
- Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp'  );
+time1 = toc;
+fprintf('-- Adaptive: DLA Update time %f\n',time1);
+%% Cull vectors
+fprintf('-- Adaptive: Culling Unneeded Vectors\n');
+tic
+[Sx,Sig,Sv] = svd(S);
+dSig = diag(Sig);
+
+rr = sum(dSig > tol);
+
+C = C*Sx;
+S = Sig;
+D = D*Sv;
+
+if rr == size(S,1)
+    Re.C = C(:,1);
+    Re.S = 0;
+    Re.D = D(:,1);
+    cullnum = 0;
+else
+    Re.C = C(:,rr+1:end);
+    Re.S = S(rr+1:end,rr+1:end);
+    Re.D = D(:,rr+1:end);
+    cullnum = size(Re.S,1);
+end
+
+C = C(:,1:rr);
+S = S(1:rr,1:rr);
+D = D(:,1:rr);
+
+time1 = toc;
+
+r = size(S,1);
+fprintf('-- Adaptive: Culled %d vectors.  Rank is %d\n',cullnum,r);
+fprintf('-- Adaptive: Culling time %f\n',time1);
+Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp',Re);
+ Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp'  ,Re); 
 %% Create randomized SVD
+tic
 Q = rand(size(C,1),pp);
 Q = Rnt(Q);
 [Q,~] = qr(Q,0);
@@ -77,37 +113,29 @@ if normF > tol %Add rank
         D1 = [D1 Dt(:,1:q)];
     end
     fprintf('-- Adaptive: Residual threshold requires %d new basis vectors\n',rr);
-    fprintf('-- Adaptive:  for a total of %d basis vectors\n',2*r+rr);
+    fprintf('-- Adaptive:  for a total of %d basis vectors\n',r+rr);
     [C,R_C] = qr([C C1],0);
     [D,R_D] = qr([D D1],0);
-    S_fill = zeros(2*r,rr);
+    S_fill = zeros(r,rr);
     R = R_C*[S S_fill;S_fill' S1]*R_D';
     [S_C,Sig,S_D] = svd(R);
     r = size(Sig,1);
-    dSig = diag(Sig);
-    for i=r:-1:1
-        if norm(dSig(i:r)) > 0.1*tol
-            rr = i;
-            break
-        end
-    end
-    %r = rr;
     C = C*S_C(:,1:r);
     S = Sig(1:r,1:r);
     D = D*S_D(:,1:r);
-    fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,tol);
 elseif normF < delta*tol %Need to decrease rank
     fprintf('-- Adaptive: Decreasing rank\n');
     [S_C,Sig,S_D] = svd(S);
     dSig = diag(Sig);
-    rr = 2*r;
-    for i=2*r:-1:1
-        if sqrt(norm(dSig(i:min([2*r,size(C,1)])),2)^2 + normF^2) >= delta*tol
+    rr = r;
+    for i=r:-1:1
+        if sqrt(norm(dSig(i:min([r,size(C,1)])),2)^2 + normF^2) >= delta*tol
             rr = i+1;
             break
         end
     end
-    rr = min([rr,2*r]);
+    rr = min([rr,r]);
+    fprintf('-- Adaptive: Removing %d vectors\n',r-rr);
     r = rr;
     %fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,Sig(end,end));
     C = C*S_C(:,1:r);
@@ -116,11 +144,13 @@ elseif normF < delta*tol %Need to decrease rank
 else
     fprintf('-- Adaptive: No change in rank\n');
 end
+
+fprintf('--------------------------------------------------------------------------\n');
 end
 
-function Y = firstOrderResidual(C,S,D,Acell,dt,BC,X,trans)
+function Y = firstOrderResidual(C,S,D,Acell,dt,BC,X,trans,Re)
 %Compute action of first order residual
-% R(U) = dt*(I-CC^T)*F(U)*(I-DD^T)*X if trans='notransp'
+% R(U) = dt*(I-CC^T)*F(U)*(I-DD^T)*X - Re*X if trans='notransp'
 % or 
 % R^T(U) = dt*(I-DD^T)*F(U)*(I-CC^T)*X if trans='transp'
 
@@ -148,6 +178,9 @@ if strcmp(trans,'notransp')
     
     %Project out of span(C)
     Y = Y - C*(C'*Y);
+    
+    %Subtract Remainder
+    Y = Y - Re.C*(Re.S*(Re.D'*X));
 else
     
     %Project out of span(C)
@@ -167,6 +200,9 @@ else
     
     %Project out span(D)
     Y = Y - D*(D'*Y);
+    
+    %Subtract Remainder
+    Y = Y - Re.D*(Re.S'*(Re.C'*X));
     
 end
     
