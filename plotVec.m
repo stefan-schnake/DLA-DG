@@ -84,7 +84,7 @@ else
     title("Plot of error");
     subplot(2,2,4)   
     h = findobj(gca,'Type','line');
-    T = get(h,'Xdata');
+    T = get(h,'Xdata'); 
     L2 = get(h,'Ydata');
     if isempty(T)
         T = 1;
@@ -111,6 +111,7 @@ else
     else
         title("L^{2} Error");
     end
+    disp(L2);
 end
 %surf(X,V,Z-sin(2*pi*X)*(V.^2-1)');
 %figure()

@@ -1,12 +1,12 @@
 
-N = 256;
+N = 1024;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
-k = 0;
+k = 3;
 
-r = 5;
+r = 1;
 
 r_cut = 1;
 
@@ -24,8 +24,6 @@ if exist('frac','var') == 0
     frac = 1/2;
 end
 dt = frac*CFL;
-%dt = 0.05;
-%dt = 0.05;
 
 moviebool = false;
 plotbool  = false;
@@ -44,8 +42,8 @@ T = 1;
 if plotbool
 figure(5)
 clf('reset')
-figure(6)
-clf('reset')
+%figure(6)
+%clf('reset')
 %figure(7)
 %clf('reset')
 figure(8)
@@ -188,7 +186,7 @@ i = 0;
 t = 0;
 
 %% Time iteration
-%while i < 1
+%while i < 5
 while (t+dt <= T+1e-9) 
 i = i+1;
 t0 = t;
@@ -258,8 +256,8 @@ updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
 
 
 if adapt
-    [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    %[C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
 else
     [C,S,D] = updateDLA(C,S,D);  
 end
@@ -285,14 +283,14 @@ U = C*S*D';
 LTE = norm(LTEU-U,'fro');
 
 end
-
+sig = svd(S);
 if fullgrid
     [UUU,SSS,VVV] = svd(UU);
     UU_lr = UUU(:,1:r)*SSS(1:r,1:r)*VVV(:,1:r)';
     %myhist = [myhist [i;r;sing(end);LTE;norm(U-UU,'fro');t]];
-    myhist = [myhist [i;r;sing(end);LTE;norm(U-UU,'fro');t;norm(UU-UU_lr,'fro')]];
+    myhist = [myhist [i;r;sig(end);LTE;norm(U-UU,'fro');t;norm(UU-UU_lr,'fro')]];
 else
-    myhist = [myhist [i;r;sing(end);norm(U,'fro');1e-5;t]];
+    myhist = [myhist [i;r;sig(end);norm(U,'fro');1e-5;t]];
 end
 
 %% Error Calc and plotting
