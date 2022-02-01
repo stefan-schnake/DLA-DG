@@ -5,6 +5,8 @@ x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
 k = 0;
 
+LF = 2;
+
 T = pi/4;
 
 %Create permuation vectors
@@ -22,7 +24,7 @@ CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);
 %dt = pi/(8*ceil(1/CFL));
 dt = 4.382802251101832e-04;
 
-Acell = buildAdvectionMatrixWithBlocks2(x,v,k);
+Acell = buildAdvectionMatrixWithBlocks2(x,v,k,LF);
 A = sparseKronAdd(Acell);
 
 t = 0;i = 0;
@@ -31,7 +33,7 @@ while (t+dt <= T+1e-9)
     i = i + 1;
     t = t + dt;
     if mod(i,100) == 0
-        fprintf('i = %5d\n',i);
+        fprintf('i = %5d: t = %.4f |u|_2 = %f\n',i,t,norm(u.perm));
     end
     u.perm = SSP_RK3(A,dt,u.perm);
 end

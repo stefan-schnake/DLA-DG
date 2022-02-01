@@ -1,8 +1,14 @@
-function [Acell] = buildAdvectionMatrixWithBlocks2(x,v,k)
+function [Acell] = buildAdvectionMatrixWithBlocks2(x,v,k,C)
 %Stiffness matrix for a\cdot\grad u where a=(-y,x) with 
 %appropriate BCs.
 %Using average gradients for now
 %Each element T\in Th is T=T_x \times T_v.
+
+%C controls LF flux;
+
+if nargin < 4
+    C = 1;
+end
 
 
 num_x = numel(x)-1;
@@ -31,7 +37,7 @@ for i=1:num_x
     block_x{2,i} = (leg_der_vals/(jac_x*sqrt(jac_x)))*(w_ref.*leg_vals'/sqrt(jac_x))*jac_x;
     %(phi_i,x*phi_j)_{T_x}
     block_x{3,i} = (leg_vals/sqrt(jac_x).*quad_x)*(w_ref.*leg_vals'/sqrt(jac_x))*jac_x;
-    %(1/2)*(phi_i,|x|*phi_j}_{T_x}
+    %(C/2)*(phi_i,|x|*phi_j}_{T_x}
     block_x{8,i} = 1/2*(leg_vals/sqrt(jac_x).*abs(quad_x))*(w_ref.*leg_vals'/sqrt(jac_x))*jac_x;
     
     %Create edge integrals 
@@ -121,7 +127,7 @@ for i=1:num_v
     block_v{2,i} = (leg_der_vals/(sqrt(jac_v)*jac_v))*(w_ref.*leg_vals'/sqrt(jac_v))*jac_v;
     %(phi_i*(-y),phi_j)_{T_v}
     block_v{3,i} = -(leg_vals/sqrt(jac_v).*quad_v)*(w_ref.*leg_vals'/sqrt(jac_v))*jac_v;
-    %(1/2)*(phi_i*|y|,phi_j)_{T_v}
+    %(C/2)*(phi_i*|y|,phi_j)_{T_v}
     block_v{8,i} = 1/2*(leg_vals/sqrt(jac_v).*abs(quad_v))*(w_ref.*leg_vals'/sqrt(jac_v))*jac_v;
     
     
@@ -215,15 +221,15 @@ for i=1:num_x
     grad = -block_x{2,i};
     %Lower edge
     if i > 1
-        grad = grad + block_x{4,i};
-        grad = grad - 0.5*block_x{9,i};
+        grad = grad +       block_x{4,i};
+        grad = grad - C*0.5*block_x{9,i};
     else
         grad = grad + block_x{4,i};
     end
     %Upper edge
     if i < num_x
-        grad = grad + block_x{6,i};
-        grad = grad - 0.5*block_x{11,i};
+        grad = grad +       block_x{6,i};
+        grad = grad - C*0.5*block_x{11,i};
     end
     
     J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
@@ -236,7 +242,7 @@ for i=1:num_x
     %Edge integrals that only share edge
     if i>1
         indices_dn = indices - (k+1);
-        grad = block_x{5,i} - 0.5*block_x{10,i};
+        grad = block_x{5,i} - C*0.5*block_x{10,i};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_dn,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -244,7 +250,7 @@ for i=1:num_x
     end
     if i<num_x
         indices_up = indices + (k+1);
-        grad = block_x{7,i} - 0.5*block_x{12,i};
+        grad = block_x{7,i} - C*0.5*block_x{12,i};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_up,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -291,13 +297,13 @@ for i=1:num_x
     grad = -block_x{2,i};
     %Lower edge
     if i > 1
-        grad = grad + block_x{4,i};
-        grad = grad + 0.5*block_x{9,i};
+        grad = grad +       block_x{4,i};
+        grad = grad + C*0.5*block_x{9,i};
     end
     %Upper edge
     if i < num_x
-        grad = grad + block_x{6,i};
-        grad = grad + 0.5*block_x{11,i};
+        grad = grad +        block_x{6,i};
+        grad = grad +  C*0.5*block_x{11,i};
     else
         grad = grad + block_x{6,i};
     end
@@ -312,7 +318,7 @@ for i=1:num_x
     %Edge integrals that only share edge
     if i>1
         indices_dn = indices - (k+1);
-        grad = block_x{5,i} + 0.5*block_x{10,i};
+        grad = block_x{5,i} + C*0.5*block_x{10,i};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_dn,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -320,7 +326,7 @@ for i=1:num_x
     end
     if i<num_x
         indices_up = indices + (k+1);
-        grad = block_x{7,i} + 0.5*block_x{12,i};
+        grad = block_x{7,i} + C*0.5*block_x{12,i};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_up,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -391,13 +397,13 @@ for j=1:num_v
     grad = -block_v{2,j};
     %Lower Edge
     if j > 1
-        grad = grad + block_v{4,j};
-        grad = grad + 0.5*block_v{9,j};
+        grad = grad +       block_v{4,j};
+        grad = grad + C*0.5*block_v{9,j};
     end
     %Upper edge
     if j < num_v
-        grad = grad + block_v{6,j};
-        grad = grad + 0.5*block_v{11,j};
+        grad = grad +       block_v{6,j};
+        grad = grad + C*0.5*block_v{11,j};
     else
         grad = grad + block_v{6,j};
     end    
@@ -411,7 +417,7 @@ for j=1:num_v
     %Edge integrals that only share edge
     if j>1
         indices_dn = indices - (k+1);
-        grad = block_v{5,j} + 0.5*block_v{10,j};
+        grad = block_v{5,j} + C*0.5*block_v{10,j};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_dn,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -419,7 +425,7 @@ for j=1:num_v
     end
     if j<num_x
         indices_up = indices + (k+1);
-        grad = block_v{7,j} + 0.5*block_v{12,j};
+        grad = block_v{7,j} + C*0.5*block_v{12,j};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_up,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -466,15 +472,15 @@ for j=1:num_v
     grad = -block_v{2,j};
     %Lower Edge
     if j > 1
-        grad = grad + block_v{4,j};
-        grad = grad - 0.5*block_v{9,j};
+        grad = grad +       block_v{4,j};
+        grad = grad - C*0.5*block_v{9,j};
     else
         grad = grad + block_v{4,j};
     end
     %Upper edge
     if j < num_v
-        grad = grad + block_v{6,j};
-        grad = grad - 0.5*block_v{11,j};
+        grad = grad +       block_v{6,j};
+        grad = grad - C*0.5*block_v{11,j};
     end    
     J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
     I(count:count+(k+1)^2-1) = reshape(repmat(indices,1,(k+1)),[],1);
@@ -486,7 +492,7 @@ for j=1:num_v
     %Edge integrals that only share edge
     if j>1
         indices_dn = indices - (k+1);
-        grad = block_v{5,j} - 0.5*block_v{10,j};
+        grad = block_v{5,j} - C*0.5*block_v{10,j};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_dn,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
@@ -494,7 +500,7 @@ for j=1:num_v
     end
     if j<num_x
         indices_up = indices + (k+1);
-        grad = block_v{7,j} - 0.5*block_v{12,j};
+        grad = block_v{7,j} - C*0.5*block_v{12,j};
         J(count:count+(k+1)^2-1) = repmat(indices,(k+1),1);
         I(count:count+(k+1)^2-1) = reshape(repmat(indices_up,1,(k+1)),[],1);
         S(count:count+(k+1)^2-1) = grad(:);
