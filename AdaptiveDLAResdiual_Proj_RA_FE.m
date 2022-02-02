@@ -122,7 +122,7 @@ end
 
 function Y = firstOrderResidual(C,S,D,Acell,dt,BC,X,trans,C1,D1)
 %Compute action of first order residual R*Q or R^T*Q where
-%R(U) = (I-P_H)(U + dt*F(U))
+%R(U) = (I-P_H)(U - dt*F(U))
 NN = size(Acell,1);
 if BC.use
     MM = size(BC.cell1);
@@ -149,7 +149,7 @@ if strcmp(trans,'notransp')
     %Projection
     %Y = Y + CC'*(LU)*DD'*X
     for l=1:NN
-        Y = Y + dt*C1*(C1'*Acell{l,1}*C1)*S_*(D1'*Acell{l,2}'*D1)*(D1'*X);
+        Y = Y + dt*C1*(C1'*Acell{l,1}*C)*S*(D'*Acell{l,2}'*D1)*(D1'*X);
     end
     if BC.use
         %Y = Y + C1*(C1'*F*D1)*(D1'*X);
@@ -174,7 +174,7 @@ else
     %Projection
     %Y = Y + DD'*(LU)*CC'*X
     for l=1:NN
-        Y = Y + dt*D1*(D1'*Acell{l,2}*D1)*S_'*(C1'*Acell{l,1}'*C1)*(C1'*X);
+        Y = Y + dt*D1*(D1'*Acell{l,2}*D)*S'*(C'*Acell{l,1}'*C1)*(C1'*X);
     end
     if BC.use
         %Y = Y + D1*(D1'*F'*C1)*(C1'*X);

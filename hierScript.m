@@ -1,5 +1,5 @@
 
-N = 256;
+N = 16;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
@@ -10,7 +10,7 @@ r = 5;
 
 r_cut = 1;
 
-test = 1;
+test = 2;
 
 %dt = 0.5*(2/N^2);
 %dt = .1;
@@ -28,11 +28,11 @@ dt = frac*CFL;
 %dt = 0.05;
 
 moviebool = false;
-plotbool  = false;
+plotbool  = true;
 savebool  = false;
 
 adapt  = false;
-adapt_tol = 1e-3;
+adapt_tol = 1e-4;
 
 T = 1;
 %T = pi;
@@ -258,8 +258,9 @@ updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
 
 
 if adapt
-    [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    %[C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    %[C,S,D] = AdaptiveDLAResdiual_Proj_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
 else
     [C,S,D] = updateDLA(C,S,D);  
 end
@@ -285,6 +286,8 @@ U = C*S*D';
 LTE = norm(LTEU-U,'fro');
 
 end
+
+sing = svd(S);
 
 if fullgrid
     [UUU,SSS,VVV] = svd(UU);
