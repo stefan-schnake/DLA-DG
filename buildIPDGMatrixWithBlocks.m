@@ -28,7 +28,7 @@ for i=1:num_x
     %(phi_i,phi_j)_{T_x}
     block_x{1,i} = (leg_vals/sqrt(jac_x))*(w_ref.*leg_vals'/sqrt(jac_x))*jac_x;
     %(\grad phi_i,\grad phi_j)_{T_x}
-    block_x{2,i} = (leg_der_vals'/(jac_x*sqrt(jac_x)))*(w_ref.*leg_der_vals/(jac_x*sqrt(jac_x)))*jac_x;
+    block_x{2,i} = (leg_der_vals/(jac_x*sqrt(jac_x)))*(w_ref.*leg_der_vals'/(jac_x*sqrt(jac_x)))*jac_x;
     
     %Create edge integrals 
     block_x{3,i} = zeros(k+1);
@@ -36,6 +36,7 @@ for i=1:num_x
     block_x{5,i} = zeros(k+1);
     block_x{6,i} = zeros(k+1);
     block_x{7,i} = zeros(k+1);
+    block_x{8,i} = zeros(k+1);
     block_x{9,i} = zeros(k+1);
     block_x{10,i} = zeros(k+1);
     
@@ -124,7 +125,7 @@ for i=1:num_x
         %<K/h[phi_i],[phi_j]>
         I =  leg_edge_vals(:,2)/sqrt(jac_x);
         J = -leg_edge_vals(:,1)/sqrt(jac_x);        
-        block_x{10,i} = block_x{12,i} + kappa/(2*jac_x)*J*I';
+        block_x{10,i} = block_x{10,i} + kappa/(2*jac_x)*J*I';
     else
         %Boundary integrals
         %Integrals sharing volume
@@ -158,7 +159,7 @@ for i=1:num_v
     %(phi_i,phi_j)_{T_v}
     block_v{1,i} = (leg_vals/sqrt(jac_v))*(w_ref.*leg_vals'/sqrt(jac_v))*jac_v;
     %(\grad phi_i,\grad phi_j)_{T_v}
-    block_v{2,i} = (leg_der_vals'/(jac_v*sqrt(jac_v)))*(w_ref.*leg_der_vals/(jac_v*sqrt(jac_v)))*jac_v;
+    block_v{2,i} = (leg_der_vals/(jac_v*sqrt(jac_v)))*(w_ref.*leg_der_vals'/(jac_v*sqrt(jac_v)))*jac_v;
     
     %Create edge integrals 
     block_v{3,i} = zeros(k+1);
@@ -166,6 +167,7 @@ for i=1:num_v
     block_v{5,i} = zeros(k+1);
     block_v{6,i} = zeros(k+1);
     block_v{7,i} = zeros(k+1);
+    block_v{8,i} = zeros(k+1);
     block_v{9,i} = zeros(k+1);
     block_v{10,i} = zeros(k+1);
     
@@ -254,7 +256,7 @@ for i=1:num_v
         %<K/h[phi_i],[phi_j]>
         I =  leg_edge_vals(:,2)/sqrt(jac_v);
         J = -leg_edge_vals(:,1)/sqrt(jac_v);        
-        block_v{10,i} = block_v{12,i} + kappa/(2*jac_v)*J*I';
+        block_v{10,i} = block_v{10,i} + kappa/(2*jac_v)*J*I';
     else
         %Boundary integrals
         %Integrals sharing volume
