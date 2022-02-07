@@ -2,7 +2,7 @@ function [] = plotVecX(x,k,u)
 %Plots u
 
 num_x = numel(x)-1;
-poi = 4;
+poi = 7;
 
 [quad_ref, ~]  = lgwt(poi,-1,1);
 quad_ref = quad_ref';

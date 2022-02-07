@@ -1,16 +1,16 @@
 
-N = 16;
+N = 256;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
-k = 0;
+k = 1;
 
-r = 5;
+r = 50;
 
 r_cut = 1;
 
-test = 2;
+test = 1;
 
 %dt = 0.5*(2/N^2);
 %dt = .1;
@@ -58,26 +58,8 @@ if moviebool
     open(myVideo);
 end
 
-%L = buildLDGMatrixAlt(x,v,k);
-%LDG = L'*L;
-%Jmp = buildJumpMatrix(x,v,k,1);
-%Adv = buildAdvectionMatrix(x,v,k,true);
-%Adv_back = buildBackAdvectionMatrix(x,v,k,true);
-FMWT = OperatorTwoScale_wavelet2(k+1,log2(N));
-
 Acell = buildAdvectionMatrixWithBlocks2(x,v,k);
-Awave = cell(size(Acell));
-for i=1:numel(Acell)
-    Awave{i} = FMWT*Acell{i}*FMWT';
-end
-
-%Use diffusion or advection
-%A = Adv;
-%A2 = Adv_back;
-%A = LDG+N*Jmp;
-%A2 = LDG+N*Jmp;
-%A = LDG;
-%A2 = LDG;
+Awave = Acell;
 
 if test == 1
 %init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
@@ -158,9 +140,9 @@ cons = one'*u0;
 
 matu = convertVectoMat(x,v,k,u);
 [U,Sig,V] = svd(matu);
-C0 = FMWT*U;
+C0 = U;
 S0 = Sig;
-D0 = FMWT*V;
+D0 = U;
 
 Sig = diag(Sig);
 if adapt
@@ -211,14 +193,6 @@ else
     BC.cell2 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t-0.5*dt));buildSeparableSourceMat(x,v,k,t-0.5*dt,source)];
     BC.cell3 = [buildDirichletMatBC(x,v,k,@(x,y) BCsoln(x,y,t));buildSeparableSourceMat(x,v,k,t,source)];
     %Convert BCs to Wavespace
-    for l=1:size(BC.cell1,1)
-       BC.cell1{l,1} = FMWT*BC.cell1{l,1}; 
-       BC.cell1{l,3} = FMWT*BC.cell1{l,3}; 
-       BC.cell2{l,1} = FMWT*BC.cell2{l,1}; 
-       BC.cell2{l,3} = FMWT*BC.cell2{l,3}; 
-       BC.cell3{l,1} = FMWT*BC.cell3{l,1}; 
-       BC.cell3{l,3} = FMWT*BC.cell3{l,3}; 
-    end
     
     BC2.use = 1;
     MM = zeros(size(BC.cell1{1,1},1),size(BC.cell1,1));
@@ -250,12 +224,12 @@ clear BC2
 
 %% Specify method
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
-%updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
-updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
+updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_Adapt_RK3(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_SYS_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_EXP(x,v,k,C,S,D,dt,Awave,BC);
-
+%updateDLA = @(C,S,D) DL4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 
 if adapt
     %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
@@ -304,10 +278,10 @@ if plotbool && ( mod(i,ceil(T/(20*dt))) == 0 || i == 1 || lastplot)
     
 
 
-    u = convertMattoVec(x,v,k,FMWT'*C*S*D'*FMWT);
+    u = convertMattoVec(x,v,k,C*S*D');
     %UU = computeMatrixExpon(C0*S0*D0',0.03,Awave);
     %load UU_EXP; UU = UU_EXP;
-    uu = convertMattoVec(x,v,k,FMWT'*UU*FMWT);
+    uu = convertMattoVec(x,v,k,UU);
     %u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
     figure(5)
     %plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));

@@ -4,6 +4,7 @@ function [C,S,D] = DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC)
 % the x and v components and then sums up
 
 %tic
+M_lim = 1;
 
 %%%Update K = CS
 K = C*S;
@@ -23,13 +24,13 @@ else
     K = F(K);
 end
 
+%Apply limiter
+K = limiterWrapper(x,k,K,M_lim);
+
 %Run QR to get new K=C*S;
 [C1,R1] = qr(K,0);
-%[C1,R1] = qr([C K],0);
-%K = K - C*(C'*K);
-%[C_,sigma,~] = svd(K,'econ');
-%rr = sum(diag(sigma) > 1e-14);
-%C1 = [C C_(:,1:rr)];
+
+
 M = C1'*C;
 
 
@@ -47,14 +48,11 @@ else
     L = F(L);
 end
 
+%Apply limiter
+L = limiterWrapper(v,k,L,M_lim);
 
 %Run QR to get new L=D*S';
 [D1,R2] = qr(L,0);
-%[D1,R2] = qr([D L],0);
-%L = L - D*(D'*L);
-%[D_,sigma,~] = svd(L,'econ');
-%rr = sum(diag(sigma) > 1e-14);
-%D1 = [D D_(:,1:rr)];
 N = D1'*D;
 
 %%%Update S
@@ -107,5 +105,12 @@ for l=1:size(Awave,1)
     CLu = CLu + Awave{l,2}*L*(C'*Awave{l,1}'*C);
 end
 
+end
+
+function X = limiterWrapper(x,k,X,M)
+    %Wrapper to limit each vector
+    for i=1:size(X,2)
+        X(:,i) = slopeLimiter(x,k,X(:,i),M,1);
+    end
 end
 
