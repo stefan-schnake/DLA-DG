@@ -7,7 +7,7 @@ end
 
 num_x = numel(x)-1;
 num_v = numel(v)-1;
-poi = 1;
+poi = 3;
 
 label_x = 'x';
 label_y = 'v'; 
