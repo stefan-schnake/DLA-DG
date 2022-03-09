@@ -4,7 +4,7 @@ function [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC)
 %Parameters
 p = 3;
 pp = p+7;
-delta = 0.9;
+delta = 0.5;
 
 r = size(S,1);
 fprintf('-- Adaptive: r = %d\n',r);

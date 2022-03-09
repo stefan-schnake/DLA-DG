@@ -1,28 +1,26 @@
+T = pi;
 
-frac = 1/2;
-hierScript
-err = norm(U-UU,'fro');
-myrank{1} = [myhist(2,:);myhist(6,:)];
+for mi=1:4
+    frac = 1/2^mi;
+    hierScript
+    tocvec(mi) = time;
+    U = C*S*D';
+    load("fullrank/frac"+num2str(2^mi)+"T"+num2str(T)+".mat");
+    err(mi) = norm(U-UU,'fro');
+    myrank{mi} = [myhist(2,:);myhist(6,:)];
+    %save("fullrank/frac"+num2str(2^mi)+"T"+num2str(T)+".mat",'UU');
+end
 
-frac = 1/4;
-hierScript
-err = [err norm(U-UU,'fro')];
-myrank{2} = [myhist(2,:);myhist(6,:)];
 
-frac = 1/8;
-hierScript
-err = [err norm(U-UU,'fro')];
-myrank{3} = [myhist(2,:);myhist(6,:)];
-
-frac = 1/16;
-hierScript
-err = [err norm(U-UU,'fro')];
-myrank{4} = [myhist(2,:);myhist(6,:)];
+%tol = 50dt^2 produces first order method
 
 log2(err(1:end-1)./err(2:end))
 
-plot(myrank{1}(2,:),myrank{1}(1,:),myrank{2}(2,:),myrank{2}(1,:),myrank{3}(2,:),myrank{3}(1,:),myrank{4}(2,:),myrank{4}(1,:));
-legend({'1/2','1/4','1/8','1/16'})
-title('SSP-RK2 Adaptive TAN Rank')
+plot(myrank{1}(2,:),myrank{1}(1,:),'-',myrank{2}(2,:),myrank{2}(1,:),':',myrank{3}(2,:),myrank{3}(1,:),'--',myrank{4}(2,:),myrank{4}(1,:),'.-','LineWidth',1.5);
+legend({'dt = CFL/2','dt = CFL/4','dt = CFL/8','dt = CFL/16'})
+%title('SSP-RK2 Adaptive TAN Rank')
+xlim([0,pi])
+xticks(0:pi/4:pi)
+xticklabels({'0','\pi/4','\pi/2','3\pi/4','\pi'})
 xlabel('time')
 ylabel('rank')

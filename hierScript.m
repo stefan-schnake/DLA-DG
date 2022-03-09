@@ -1,5 +1,5 @@
 
-N = 16;
+N = 256;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
@@ -10,7 +10,7 @@ r = 5;
 
 r_cut = 1;
 
-test = 2;
+test = 1;
 
 %dt = 0.5*(2/N^2);
 %dt = .1;
@@ -27,16 +27,23 @@ dt = frac*CFL;
 %dt = 0.05;
 %dt = 0.05;
 
+fullgrid  = false;
 moviebool = false;
-plotbool  = true;
+plotbool  = false;
 savebool  = false;
 
-adapt  = false;
-adapt_tol = 1e-4;
+adapt  = true;
+adapt_tol = 5*dt^2; 
+    %T = 1;  50dt^2 for RA; 12*dt^2 for WG
+    %T = pi; 50dt^2 for RA;  5*dt^2 for WG
 
-T = 1;
-%T = pi;
+if exist('T','var') == 0
+%T = 1;
+T = pi;
 %T = 3.5;
+end
+
+time = 0;
 
 %%%-------------------------------------------
 
@@ -44,8 +51,8 @@ T = 1;
 if plotbool
 figure(5)
 clf('reset')
-figure(6)
-clf('reset')
+%figure(6)
+%clf('reset')
 %figure(7)
 %clf('reset')
 figure(8)
@@ -171,11 +178,13 @@ if adapt
 else
     R = [r]; 
 end
+r = 1;
 C = C0(:,1:r);
 S = S0(1:r,1:r);
 D = D0(:,1:r);
 
 myhist = [];
+R_full = [];
 
 %Used as storage for multistep
 FC = [];FD = [];FS = [];
@@ -256,34 +265,39 @@ updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_SYS_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_EXP(x,v,k,C,S,D,dt,Awave,BC);
 
-
+tic
 if adapt
+    %[C,S,D] = WG_FE(x,v,k,C,S,D,dt,Awave,BC,adapt_tol);
     %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
     %[C,S,D] = AdaptiveDLAResdiual_Proj_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
     [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    %[C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
 else
     [C,S,D] = updateDLA(C,S,D);  
 end
+time = time + toc;
 R = [R size(S,1)];
 r = size(S,1);
 
 
 %% Full-grid run
-fullgrid = 1;
 if fullgrid
 
-LTEU = MAT_SSP_RK2(U,dt,Awave,BC);
+
 
 %UU_FE = UU - dt*applyMatA(UU,Awave);
 %UU_RK2 = MAT_SSP_RK2(UU,dt,Awave,BC);
 %UU_RK3 = MAT_SSP_RK3(UU,dt,Awave,BC);
 %FU = -applyMatA(UU,Awave);
-UU = MAT_SSP_RK3(UU,dt,Awave,BC);
+UU = UU - dt*applyMatA(UU,Awave);
+%UU = MAT_SSP_RK3(UU,dt,Awave,BC);
 %UU = MAT_SSP_RK2(UU,dt,Awave,BC);
 %UU = computeMatrixExpon(UU,dt,Awave);
 
+%LTEU = MAT_SSP_RK2(U,dt,Awave,BC);
 U = C*S*D';
-LTE = norm(LTEU-U,'fro');
+%LTE = norm(LTEU-U,'fro');
+LTE = 0;
 
 end
 
