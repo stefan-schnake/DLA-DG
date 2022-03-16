@@ -4,7 +4,7 @@ function [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,tol,Awave,BC)
 %Parameters
 p = 3;
 pp = p+7;
-delta = 0.2;
+delta = 0.7;
 
 quiet = false;
 
@@ -40,7 +40,7 @@ if normF > tol %Add rank
     tolflag = true;
     dS1 = diag(S1);
     for i=2:p %Seeing if the vectors I created are sufficient
-        normF = norm(dS1(i:p),2) + sqrt(max([6*r-i,1]))*S1(p,p);
+        normF = norm(dS1(i:pp),2) + sqrt(max([6*r-i,1]))*S1(pp,pp);
         if normF < tol
             tolflag = false;
             break
@@ -67,7 +67,7 @@ if normF > tol %Add rank
         Ct = Q*Utmp;
         for i=1:p %Seeing if the vectors I created are sufficient
             dSt = diag(St);
-            normF = norm(dSt(i:p),2) + sqrt(max([6*r-rr-i,1]))*St(p,p);
+            normF = norm(dSt(i:pp),2) + sqrt(max([6*r-rr-i,1]))*St(pp,pp);
             if normF < tol
                 tolflag = false;
                 break
