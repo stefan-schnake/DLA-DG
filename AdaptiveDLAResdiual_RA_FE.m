@@ -23,7 +23,7 @@ time1 = toc;
 Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp',C,D);
 Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp',C,D);
 tic
-Q = rand(size(C,1),pp);
+Q = randn(size(C,1),pp);
 Q = Rnt(Q);
 [Q,~] = qr(Q,0);
 B = Rt(Q)';
@@ -59,7 +59,7 @@ if normF > tol %Add rank
         if rr+p >= size(C,1)
             tolflag = false;
         end       
-        Q = rand(size(C,1),pp);
+        Q = randn(size(C,1),pp);
         Q = Rnt(Q) - LReval(C1,S1,D1,Q,'notransp');
         [Q,~] = qr(Q,0);
         B = Rt(Q)' - LReval(C1,S1,D1,Q,'transp')';
@@ -224,8 +224,8 @@ end
 function [c,d] = ALTSVD(C0,S0,D0,C,S,D,Acell,dt,BC)
 
     %Seed c and d
-    c = rand(size(C,1),1); c = c/norm(c,2);
-    d = rand(size(D,1),1); d = d/norm(d,2);
+    c = randn(size(C,1),1); c = c/norm(c,2);
+    d = randn(size(D,1),1); d = d/norm(d,2);
     
     for i=1:1000
         %Update c

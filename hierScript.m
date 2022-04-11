@@ -6,9 +6,9 @@ x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
 k = 0;
 
-r = 5;
-
 r_cut = 1;
+
+r = 1;
 
 test = 1;
 
@@ -27,19 +27,40 @@ dt = frac*CFL;
 %dt = 0.05;
 %dt = 0.05;
 
+if exist('frac','var') == 0
+    alg = 'RARA_UC';
+end
+
 fullgrid  = false;
 moviebool = false;
 plotbool  = false;
 savebool  = false;
 
 adapt  = true;
-adapt_tol = 5*dt^2; 
+%adapt_tol = 880*dt^2;
+adapt_tol = mytol(ii)*dt^2;
     %T = 1;  50dt^2 for RA; 12*dt^2 for WG
     %T = pi; 50dt^2 for RA;  5*dt^2 for WG
+    
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%  Tolerance Table  %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%
+%  err  | RARA_UC | RARA_TAN  | RARA_PJ | RA_UC  | WG
+% 3e-3  | 880dt^2 | 11255dt^2 | 857dt^2 | 25dt^2 | 19dt^2
+%       | 2.9546  | 2.5973    | 3.0877  | 3.0385 | 3.237
+%
+%
+%  err  | RARA_UC | RARA_TAN  | RARA_PJ | RA_UC  | WG
+% 2.138 | 400dt^2 | 500dt^2   | 200dt^2 |   dt^2 | 5dt^2
+%   e-3 | 2.1348  | 2.1414    | 2.1642  | 2.5915 | 2.1082
+%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
 if exist('T','var') == 0
 %T = 1;
 T = pi;
+%T = pi;
 %T = 3.5;
 end
 
@@ -170,20 +191,26 @@ S0 = Sig;
 D0 = FMWT*V;
 
 Sig = diag(Sig);
-if adapt
-    r = sum(Sig > adapt_tol)+1;
-    if r > size(U,1); r = size(U,1); end
-    fprintf('-- Initial Adaptive r: r = %d\n',r);
-    R = [r];
-else
-    R = [r]; 
-end
-r = 1;
+% if adapt
+%     r = sum(Sig > adapt_tol)+1;
+%     if r > size(U,1); r = size(U,1); end
+%     fprintf('-- Initial Adaptive r: r = %d\n',r);
+%     R = [r];
+% else
+%     R = [r]; 
+% end
+%r = 9;
+R = [r];
 C = C0(:,1:r);
 S = S0(1:r,1:r);
 D = D0(:,1:r);
 
-myhist = [];
+%Modify C and D with random
+% C1 = randn(size(C)-[0,1]);
+% D1 = randn(size(C)-[0,1]);
+% [C,~] = qr([C(:,1) C1],0);
+% [D,~] = qr([D(:,1) D1],0);
+
 R_full = [];
 
 %Used as storage for multistep
@@ -191,8 +218,14 @@ FC = [];FD = [];FS = [];
 
 U = C*S*D';
 UU = U;
-UU_RK3 = U;
-uu = u;
+UU_FE = U;
+
+if fullgrid
+    myhist = [0;r;S(end,end);0;norm(U-UU,'fro');0;0];
+else
+    myhist = [0;r;S(end,end);norm(U,'fro');1e-5;0];
+end
+
 i = 0;
 t = 0;
 
@@ -258,20 +291,28 @@ clear BC2
 
 
 %% Specify method
+updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
-updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_Adapt_RK3(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_SYS_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_EXP(x,v,k,C,S,D,dt,Awave,BC);
 
 tic
 if adapt
-    %[C,S,D] = WG_FE(x,v,k,C,S,D,dt,Awave,BC,adapt_tol);
-    %[C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    %[C,S,D] = AdaptiveDLAResdiual_Proj_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
-    %[C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    switch alg
+        case 'LUB'
+            [C,S,D] = AdaptiveDLAResdiual2_FE_Lub(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+        case 'WG'
+            [C,S,D] = WG_FE(x,v,k,C,S,D,dt,Awave,BC,adapt_tol);
+        case 'RARA_UC'
+            [C,S,D] = AdaptiveDLAResdiual_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+        case 'RARA_TAN'
+            [C,S,D] = AdaptiveDLAResdiual_TAN_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+        case 'RARA_PROJ'
+            [C,S,D] = AdaptiveDLAResdiual_Proj_RA_FE(x,v,k,C,S,D,dt,adapt_tol,Awave,BC);
+    end
 else
     [C,S,D] = updateDLA(C,S,D);  
 end
@@ -285,12 +326,12 @@ if fullgrid
 
 
 
-%UU_FE = UU - dt*applyMatA(UU,Awave);
+UU_FE = UU_FE - dt*applyMatA(UU_FE,Awave);
 %UU_RK2 = MAT_SSP_RK2(UU,dt,Awave,BC);
 %UU_RK3 = MAT_SSP_RK3(UU,dt,Awave,BC);
 %FU = -applyMatA(UU,Awave);
-UU = UU - dt*applyMatA(UU,Awave);
-%UU = MAT_SSP_RK3(UU,dt,Awave,BC);
+%UU = UU - dt*applyMatA(UU,Awave);
+UU = MAT_SSP_RK3(UU,dt,Awave,BC);
 %UU = MAT_SSP_RK2(UU,dt,Awave,BC);
 %UU = computeMatrixExpon(UU,dt,Awave);
 

@@ -6,16 +6,20 @@ p = 3;
 pp = p+7;
 delta = 0.5;
 
+quiet = true;
+
 r = size(S,1);
-fprintf('-- Adaptive: r = %d\n',r);
+if ~quiet
+    fprintf('-- Adaptive: r = %d\n',r);
+end
 C0 = C; S0 = S; D0 = D;
 %Update
 [C,S,D] = DLA4_TAN_FE(x,v,k,C,S,D,dt,Awave,BC);
 %fprintf(' DLA update time: %f\n',toc);
 Rnt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'notransp');
  Rt = @(x) firstOrderResidual(C0,S0,D0,Awave,dt,BC,x,'transp'  );
-%% Create randomized SVD
-Q = rand(size(C,1),pp);
+%% Create randnomized SVD
+Q = randn(size(C,1),pp);
 Q = Rnt(Q);
 [Q,~] = qr(Q,0);
 B = Rt(Q)';
@@ -26,15 +30,17 @@ time1 = toc;
 %% Create norm estimator
 normF = norm(diag(S1),2) + sqrt(max([6*r-p,1]))*S1(end,end);
 
-fprintf('-- Adaptive: Residual computation time: %f\n',time1);
-fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',normF,tol);
+if ~quiet
+    fprintf('-- Adaptive: Residual computation time: %f\n',time1);
+    fprintf('-- Adaptive: Residual estimate of %e with tol %e\n',normF,tol);
+end
 if normF > tol %Add rank
-    fprintf('-- Adaptive: Increasing rank\n');
+    if ~quiet; fprintf('-- Adaptive: Increasing rank\n'); end
     tolflag = true;
     dS1 = diag(S1);
     for i=2:p %Seeing if the vectors I created are sufficient
         normF = norm(dS1(i:pp),2) + sqrt(max([6*r-i,1]))*S1(pp,pp);
-        if normF < 0.9*tol
+        if normF < tol
             tolflag = false;
             break
         end
@@ -52,7 +58,7 @@ if normF > tol %Add rank
         if rr+p >= size(C,1)
             tolflag = false;
         end       
-        Q = rand(size(C,1),pp);
+        Q = randn(size(C,1),pp);
         Q = Rnt(Q) - LReval(C1,S1,D1,Q,'notransp');
         [Q,~] = qr(Q,0);
         B = Rt(Q)' - LReval(C1,S1,D1,Q,'transp')';
@@ -61,7 +67,7 @@ if normF > tol %Add rank
         for i=1:p %Seeing if the vectors I created are sufficient
             dSt = diag(St);
             normF = norm(dSt(i:pp),2) + sqrt(max([6*r-rr-i,1]))*St(pp,pp);
-            if normF < 0.9*tol
+            if normF < tol
                 tolflag = false;
                 break
             end
@@ -76,28 +82,30 @@ if normF > tol %Add rank
         C1 = [C1 Ct(:,1:q)];
         D1 = [D1 Dt(:,1:q)];
     end
-    fprintf('-- Adaptive: Residual threshold requires %d new basis vectors\n',rr);
-    fprintf('-- Adaptive:  for a total of %d basis vectors\n',2*r+rr);
+    if ~quiet
+        fprintf('-- Adaptive: Residual threshold requires %d new basis vectors\n',rr);
+        fprintf('-- Adaptive:  for a total of %d basis vectors\n',2*r+rr);
+    end
     [C,R_C] = qr([C C1],0);
     [D,R_D] = qr([D D1],0);
     S_fill = zeros(2*r,rr);
     R = R_C*[S S_fill;S_fill' S1]*R_D';
     [S_C,Sig,S_D] = svd(R);
     r = size(Sig,1);
-    dSig = diag(Sig);
-    for i=r:-1:1
-        if norm(dSig(i:r)) > 0.1*tol
-            rr = i;
-            break
-        end
-    end
+%     dSig = diag(Sig);
+%     for i=r:-1:1
+%         if norm(dSig(i:r)) > 0.1*tol
+%             rr = i;
+%             break
+%         end
+%     end
     %r = rr;
     C = C*S_C(:,1:r);
     S = Sig(1:r,1:r);
     D = D*S_D(:,1:r);
-    fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,tol);
+    if ~quiet; fprintf('-- Adaptive: Cutting down to %d vectors, tol = %e\n',r,tol); end
 elseif normF < delta*tol %Need to decrease rank
-    fprintf('-- Adaptive: Decreasing rank\n');
+    if ~quiet; fprintf('-- Adaptive: Decreasing rank\n'); end
     [S_C,Sig,S_D] = svd(S);
     dSig = diag(Sig);
     rr = 2*r;
@@ -114,7 +122,7 @@ elseif normF < delta*tol %Need to decrease rank
     S = Sig(1:r,1:r);
     D = D*S_D(:,1:r);
 else
-    fprintf('-- Adaptive: No change in rank\n');
+    if ~quiet; fprintf('-- Adaptive: No change in rank\n'); end
 end
 end
 

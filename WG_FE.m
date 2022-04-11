@@ -33,7 +33,7 @@ for rr=r*(NN+1)+1:-1:1
         break
     end
 end
-rr = rr - 1;
+rr = max([rr - 1,1]);
 
 C = C1*U_S(:,1:rr);
 D = D1*V_S(:,1:rr);
