@@ -1,23 +1,23 @@
-function [U] = DLA4_HB_FE(U,dt,Acell,BC)
-%% DLA in hierarchical basis
+function [C,S,D] = DLA4_HB_BE(x,v,k,C,S,D,dt,Awave,BC)
+%% BE DLA by Fixed Point Iteration
 % Does not convert soln to full basis but evaluates the PDE on
 % the x and v components and then sums up
 
 %tic
 
 %%%Update K = CS
-K = U.C*U.S;
+K = C*S;
 
 if BC.use
     NN = size(BC.cell1,1);
 end
 
 %%%SSP-RK3
-F = @(g) g - dt*applyAonK(g,U.D,Acell);
+F = @(g) g - dt*applyAonK(g,D,Awave);
 if BC.use
     K = F(K);
     for l=1:NN
-        K = K - dt*BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*U.D);
+        K = K - dt*BC.cell1{l,1}*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
     end
 else
     K = F(K);
@@ -30,18 +30,18 @@ end
 %[C_,sigma,~] = svd(K,'econ');
 %rr = sum(diag(sigma) > 1e-14);
 %C1 = [C C_(:,1:rr)];
-M = C1'*U.C;
+M = C1'*C;
 
 
 %%%Update L = D*S'
-L = U.D*U.S';
+L = D*S';
 
 %%%SSP-RK3
-F = @(g) g - dt*applyAonL(g,U.C,Acell);
+F = @(g) g - dt*applyAonL(g,C,Awave);
 if BC.use
     L = F(L);
     for l=1:NN
-        L = L - dt*BC.cell1{l,3}*BC.cell1{l,2}'*(BC.cell1{l,1}'*U.C);
+        L = L - dt*BC.cell1{l,3}*BC.cell1{l,2}'*(BC.cell1{l,1}'*C);
     end
 else
     L = F(L);
@@ -55,13 +55,13 @@ end
 %[D_,sigma,~] = svd(L,'econ');
 %rr = sum(diag(sigma) > 1e-14);
 %D1 = [D D_(:,1:rr)];
-N = D1'*U.D;
+N = D1'*D;
 
 %%%Update S
-S_ = M*U.S*N';
+S_ = M*S*N';
 
 %%%SSP-RK3
-F = @(g) g - dt*applyAonS(g,C1,D1,Acell);
+F = @(g) g - dt*applyAonS(g,C1,D1,Awave);
 if BC.use
     S1 = F(S_);
     for l=1:NN
@@ -72,39 +72,39 @@ else
 end
 
 
-U.C = C1;
-U.S = S1;
-U.D = D1;
+C = C1;
+S = S1;
+D = D1;
 
 end
 
 
-function LuD = applyAonK(K,D,Acell)
+function LuD = applyAonK(K,D,Awave)
 %%%Updates X via the DLA update
 
 LuD = zeros(size(K));
-for l=1:size(Acell,1)
-    LuD = LuD + Acell{l,1}*K*(D'*Acell{l,2}'*D);
+for l=1:size(Awave,1)
+    LuD = LuD + Awave{l,1}*K*(D'*Awave{l,2}'*D);
 end
 
 end
 
-function CLuD = applyAonS(S,C,D,Acell)
+function CLuD = applyAonS(S,C,D,Awave)
 %%%Updates S via the DLA update
 
 CLuD = zeros(size(S));
-for l=1:size(Acell,1)
-    CLuD = CLuD + (C'*Acell{l,1}*C)*S*(D'*Acell{l,2}'*D);
+for l=1:size(Awave,1)
+    CLuD = CLuD + (C'*Awave{l,1}*C)*S*(D'*Awave{l,2}'*D);
 end
 
 end
 
-function CLu = applyAonL(L,C,Acell)
+function CLu = applyAonL(L,C,Awave)
 %%%Updates V via the DLA update
 
 CLu = zeros(size(L));
-for l=1:size(Acell,1)
-    CLu = CLu + Acell{l,2}*L*(C'*Acell{l,1}'*C);
+for l=1:size(Awave,1)
+    CLu = CLu + Awave{l,2}*L*(C'*Awave{l,1}'*C);
 end
 
 end

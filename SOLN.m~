@@ -1,0 +1,78 @@
+classdef SOLN < handle
+    %Holds solution and its properties
+    
+    properties
+        C = [];
+        S = [];
+        D = [];
+        mat = [];
+        vec = [];
+        mesh = [];
+        x;
+        v;
+        k;
+        per;
+        iper;
+    end
+    
+    methods
+        function obj = SOLN(x,v,k,per,iper)
+            obj.x = x;
+            obj.v = v;
+            obj.k = k;
+            if nargin > 3
+                obj.per = per;
+                obj.iper = iper;
+            end
+        end
+        
+        function [] = buildMatFromLR(obj)
+            %Create full rank matrix from low rank factors
+            obj.mat = obj.C*obj.S*obj.D';
+        end
+        
+        
+        function [] = getLowRankFactors(obj,tol)
+            %Create low rank factors from full matrix
+            if nargin < 2
+                tol = 1e-14;
+            end            
+            assert(~isempty(obj.mat),'Error: Matrix Property Needed for SVD');
+            [obj.C,obj.S,obj.D] = svd(obj.mat,'econ');
+            r = sum(diag(obj.S) > tol);
+            obj.C = obj.C(:,1:r);
+            obj.S = obj.S(1:r,1:r);
+            obj.D = obj.D(:,1:r);
+        end
+        
+        
+        function [] = mat2Vec(obj)
+            assert(~isempty(obj.mat));    
+            if ~isempty(obj.iper)
+                tmp = reshape(obj.mat,[],1);
+                obj.vec = tmp(obj.iper);
+            else
+                obj.vec = convertMattoVec(obj.x.nodes,obj.v.nodes,obj.k,obj.mat);
+            end
+        end
+        
+        
+        function [] = vec2Mat(obj)
+            
+        end
+        
+ 
+        function r = rank(obj)
+            assert(~isempty(obj.S));
+            r = size(obj.S,1);
+        end
+        
+        function plot(obj)
+            assert(~isempty(obj.vec),'Run obj.getVec() to create vector before calling obj.plot()');
+            plotVec(obj.x.nodes,obj.v.nodes,obj.k,obj.vec);
+        end
+    end
+end
+
+
+
