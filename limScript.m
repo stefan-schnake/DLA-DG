@@ -24,10 +24,9 @@ U = vec2mat(U,x,v,k,per);
 LU = vec2mat(LU,x,v,k,per);
 
 LU = lrSVD(LU);
-r = 250;
-LU.S(r:end,r:end) = zeros(size(LU.S(r:end,r:end)));
-LU = getMat(LU);
-LU = mat2vec(LU,iper);
+U = lrSVD(U);
+
+semilogy(1:size(U.S,1),diag(U.S),1:size(LU.S,1),diag(LU.S)); legend({'L2 Proj','Limited'})
 
 % 
 % 
