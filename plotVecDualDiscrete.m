@@ -59,6 +59,7 @@ V = flipud(V);
 if nargin <= 4
     [XX,VV] = meshgrid(X,V);
     surf(X,V,Z,'EdgeColor','none');
+    %caxis([-0.1,1.1]);
     view([0 0 90])
     %scatter3(XX(:),VV(:),Z(:),[],Z(:));
     xlabel(label_x);
@@ -67,6 +68,7 @@ if nargin <= 4
 else
     subplot(2,2,1)
     surf(X,V,Z,'LineStyle','none');
+    %caxis([-0.1,1.1]);
     view([0 0 90])
     xlabel(label_x);
     ylabel(label_y);
@@ -74,6 +76,7 @@ else
     [XX,VV] = meshgrid(X,V);
     subplot(2,2,2)
     surf(X,V,Z2,'LineStyle','none');
+    %caxis([-0.1,1.1]);
     view([0 0 90])
     xlabel(label_x);
     ylabel(label_y);

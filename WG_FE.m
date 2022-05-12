@@ -3,7 +3,6 @@ function [C,S,D] = WG_FE(x,v,k,C,S,D,dt,Awave,BC,tol)
 %% Ignore BCs for now!!!
 
 NN = size(Awave,1);
-
 r = size(S,1);
 
 C1 = zeros(size(C,1),r*(NN+1));
@@ -20,6 +19,15 @@ for i=1:NN
     D1(:,idx) = Awave{i,2}*D;
     S1(idx,idx) = -dt*S;
 end
+if BC.use
+    for i=1:size(BC.cell1)
+        C1 = [C1 BC.cell1{i,1}];
+        m = size(S1,1);
+        n = size(BC.cell1{i,2},1);
+        S1 = [S1 zeros(m,n);zeros(n,m) -dt*BC.cell1{i,2}];
+        D1 = [D1 BC.cell1{i,3}];
+    end
+end
 
 %Orthogonalize
 [C1,RC] = qr(C1,0);
@@ -28,12 +36,12 @@ end
 sig = diag(S1);
 
 %Want maximum tail <= tol
-for rr=r*(NN+1)+1:-1:1
-    if norm(sig(rr:r*(NN+1))) > tol
+for rr=numel(sig)+1:-1:1
+    if norm(sig(rr:numel(sig))) > tol
         break
     end
 end
-rr = max([rr - 1,1]);
+rr = min([rr,size(S1,1)]);
 
 C = C1*U_S(:,1:rr);
 D = D1*V_S(:,1:rr);

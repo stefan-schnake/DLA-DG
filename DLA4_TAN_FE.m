@@ -37,22 +37,22 @@ for l=1:NN
     S_ = S_ - (C'*BC.cell1{l,1})*BC.cell1{l,2}*(BC.cell1{l,3}'*D);
 end
 end
-S1 = RC*[S-dt*S_,dt*eye(r);dt*eye(r),0*S]*RD';
-[SU,S1,SV] = svd(S1);
+%S1 = RC*[S-dt*S_,dt*eye(r);dt*eye(r),0*S]*RD';
+%[SU,S1,SV] = svd(S1);
 
 %C0 = C; S0 = S; D0 = D;
 %C = C1; S = S1; D = D1;
 %r = size(S1,1);
 %r = size(S1);
 
-C = C1*SU(:,1:r);
-S = S1(1:r,1:r);
-D = D1*SV(:,1:r);
+%C = C1*SU(:,1:r);
+%S = S1(1:r,1:r);
+%D = D1*SV(:,1:r);
 
-%C = C1;
-%D = D1;
+C = C1;
+D = D1;
 %S = [S-dt*S_,dt*eye(r);dt*eye(r),zeros(r)];
-%S = RC*[S-dt*S_,dt*eye(r);dt*eye(r),zeros(r)]*RD';
+S = RC*[S-dt*S_,dt*eye(r);dt*eye(r),zeros(r)]*RD';
 
 tt = toc;
 end

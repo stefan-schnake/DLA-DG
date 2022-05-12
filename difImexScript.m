@@ -1,34 +1,47 @@
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-N = 256;
+% PDE:   
+%         u_t + c\cdot\grad u + alpha(u-Pu) = 0
+% 
+% where
+%
+%   c = (-y,x)
+
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+N = 32;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
 v = vv(1):(vv(2)-vv(1))/N:vv(2);
-k = 0;
+k = 1;
 
-r = 1;
+r = 12;
 
 test = 1;
 
-a_vec = [0.43,pi/4];
-
-CFL = 1/(2*k+1)*(1/N);
+a_vec = [0.5,1];
 
 if exist('frac','var') == 0
-    frac = 1/4;
+    frac = 1/2;
 end
-dt = frac*CFL;
+%CFL = 1/(2*k+1)*(1/N);
+%dt = 0.01/N^2;
+dt = 1/N;
+%dt = frac*CFL;
 
-alg = 'LUB';
+alg = 'RARA_UC';
 
 
-fullgrid  = false;
+fullgrid  = true;
 moviebool = false;
-plotbool  = false;
+plotbool  = true;
 savebool  = false;
 
-adapt  = true;
-adapt_tol = 10*dt^2;
+adapt  = false;
+adapt_tol = 200*dt^2;
 %adapt_tol = mytol(ii)*dt^2;
     %T = 1;  50dt^2 for RA; 12*dt^2 for WG
     %T = pi; 50dt^2 for RA;  5*dt^2 for WG
@@ -48,17 +61,13 @@ adapt_tol = 10*dt^2;
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 
-if exist('T','var') == 0
-%T = 1;
-T = 2;
-%T = pi;
+T = 1;
+%T = 2;
 %T = 3.5;
-end
+
 
 time.DLA = 0;
 time.FUL = 0;
-
-clear FullGridVec
 
 %%%-------------------------------------------
 
@@ -74,12 +83,14 @@ if moviebool
     open(myVideo);
 end
 
-Acell = buildConstantAdvectionMatrixWithBlocks(x,v,k,a_vec);
+Acell = buildIPDGMatrixWithBlocks(x,v,k,10);
+
+%steady = steadyStateSoln(x,v,k,Acell);
 
 if test == 1
-init = @(x,y)  (x > -3/4).*(x < -1/4).*(y > -3/4).*(y < -1/4);
-BCsoln = @(x,v,t) soln_func(x,v,t,init);
-source = @(x,v,t) 0*x;
+box = @(x,y) (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+init = @(x,y) box(x,y);
+%init = @(x,y) sin(pi*x).*sin(pi*y);
 end
 
 u0 = buildNonSeparableSource(x,v,k,init);
@@ -97,15 +108,6 @@ S0 = Sig;
 D0 = V;
 
 Sig = diag(Sig);
-% if adapt
-%     r = sum(Sig > adapt_tol)+1;
-%     if r > size(U,1); r = size(U,1); end
-%     fprintf('-- Initial Adaptive r: r = %d\n',r);
-%     R = [r];
-% else
-%     R = [r]; 
-% end
-%r = 9;
 R = [r];
 C = C0(:,1:r);
 S = S0(1:r,1:r);
@@ -123,7 +125,6 @@ end
 
 i = 0;
 t = 0;
-
 %% Time iteration
 %while i < 1
 while (t+dt <= T+1e-9) 
@@ -142,9 +143,8 @@ BC.use = 0;
 
 
 %% Specify method
-updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Acell,BC);
-%updateDLA = @(C,S,D) DLA4_HB_PROJ_FE(x,v,k,C,S,D,dt,Acell,BC);
-%updateDLA = @(C,S,D) DLA4_IMEX_FE(x,v,k,C,S,D,dt,Acell,BC);
+%updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Acell,BC);
+updateDLA = @(C,S,D) DLA4_IMEX_FE(x,v,k,C,S,D,dt,Acell,BC);
 %updateDLA = @(C,S,D) DLA4_TAN_FE(x,v,k,C,S,D,dt,Acell,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Acell,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Acell,BC);
@@ -175,18 +175,17 @@ r = size(S,1);
 if fullgrid
 
 
-
-UU_FE = UU_FE - dt*applyMatA(UU_FE,Acell);
+%UU_FE = MAT_FE(UU_FE,dt,Acell,BC);
+%UU_FE = UU_FE - dt*applyMatA(UU_FE,Acell);
 %UU_RK2 = MAT_SSP_RK2(UU,dt,Acell,BC);
 %UU_RK3 = MAT_SSP_RK3(UU,dt,Acell,BC);
 %FU = -applyMatA(UU,Acell);
 %UU = UU - dt*applyMatA(UU,Acell);
 tic
-UU = MAT_SSP_RK3(UU,dt,Acell,BC);
-%[uu,uu_fe] = FullGridVec(UU(:),UU_FE(:),dt,Acell);
+%UU = MAT_SSP_RK3(UU,dt,Acell,BC);
+UU = BEFullRank(x,v,k,dt,Acell,UU);
+%UU = MAT_FE(UU,dt,Acell,BC);
 time.FUL = time.FUL + toc;
-%UU = reshape(uu,size(UU));
-%UU_FE = reshape(uu_fe,size(UU_FE));
 %UU = MAT_SSP_RK2(UU,dt,Acell,BC);
 %UU = computeMatrixExpon(UU,dt,Acell);
 
@@ -215,17 +214,20 @@ if plotbool && ( mod(i,ceil(T/(20*dt))) == 0 || i == 1 || lastplot)
 
 
     u = convertMattoVec(x,v,k,C*S*D');
+    %UU = computeMatrixExpon(C0*S0*D0',0.03,Acell);
+    %load UU_EXP; UU = UU_EXP;
+    %u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
     figure(5)
-    
+    %plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
+    %sgtitle('DLA Solution')
     if fullgrid
         uu = convertMattoVec(x,v,k,UU);
-        %u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
-        %plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
-        %sgtitle('DLA Solution')
         plotVecDualDiscrete(x,v,k,u,uu,myhist);
         sgtitle("DLRA vs Full Rank - t = " + num2str(t));
     else
         plotVec(x,v,k,u);
+        title("DLRA - r = " + num2str(r) + ", t = " + num2str(t));
+        colorbar
     end
     
     if moviebool
@@ -316,13 +318,6 @@ if savebool
     
 end
 
-if ~exist('sigK','var')
-    sigK = sigk;
-elseif size(sigk,2) == size(sigK,2)
-    sigK = [sigK;sigk];
-end
-
-
 
 function z = soln_func(x,v,t,u0)
     %Follow characteristics backwards to initial condition        
@@ -380,25 +375,6 @@ function U = MAT_SSP_RK3(U,dt,Acell,BC)
     end
 end
 
-function [uu,uu_fe] = FullGridVec(uu,uu_fe,dt,Acell)
-    persistent A
-    
-    if isempty(A)
-        A = kron(Acell{2,1},Acell{1,1});
-        for i=2:numel(Acell,1)
-            A = A + kron(Acell{2,i},Acell{1,i});
-        end
-    end
-    
-    %FE
-    uu_fe = uu_fe - dt*A*uu_fe(:);
-    
-    u1 = uu - dt*A*uu;
-    u2 = (3/4)*uu + (1/4)*(u1 - dt*A*u1);
-    uu = (1/3)*uu + (2/3)*(u2 - dt*A*u2);
-    
-end
-
 function LU = applyMatA(U,Acell)
     LU = 0*U;
     for l=1:size(Acell,1)
@@ -406,46 +382,23 @@ function LU = applyMatA(U,Acell)
     end
 end
 
-function sparseSVD(fcell,X,trans)
-    NN = size(fcell,1);
-    Y = zeros(size(X));
-    if strcmp(trans,'notransp')
-        for l=1:NN
-            Y = Y + (fcell{l,1}*fcell{l,2})*(fcell{l,3}'*X);
-        end
-    else
-        for l=1:NN
-            Y = Y + (fcell{l,3}*fcell{l,2}')*(fcell{l,1}'*X);
-        end        
-    end
-
-end
-
-function M = assembleLRform(fcell)
-    NN = size(fcell,1);
-    M = zeros(size(fcell{1,1},1),size(fcell{1,3},1));
-    for l=1:NN
-        M = M + fcell{l,1}*fcell{l,2}*fcell{l,3}';
-    end
-end
-
-function PU = calcTanProj(U,C,D)
-    PU = (U*D)*D' - C*(C'*U*D)*D' + C*(C'*U);
-end
-
-function U = computeMatrixExpon(U,t,Acell)
-    u = U;
-    for i=1:20
-        u_temp = zeros(size(u));
-        for l=1:size(Acell,1)
-            u_temp = u_temp - Acell{l,1}*u*Acell{l,2}';
-        end
-        u = u_temp;
-        U = U + 1/factorial(i)*t^i*u;
-        if 1/factorial(i)*t^i*norm(u,'fro') < 1e-15
-            break
+function UU = BEFullRank(x,v,k,dt,Acell,UU)
+    persistent A
+    tol = 1e-8;
+    
+    if isempty(A)
+        A = kron(Acell{1,2},Acell{1,1});
+        for i=2:size(Acell,1)
+            A = A + kron(Acell{i,2},Acell{i,1});
         end
     end
+    
+    %uu = (speye(size(A))+dt*A)\(UU(:));
+    [uu,~,relres,iter] = pcg(@(x) x + dt*A*x,UU(:),tol,numel(UU));
+    if relres > 10*tol
+        string = "CG failed: relres = " + num2str(relres) + " and iter = " + num2str(iter);
+        assert(relres < 10*tol,string);
+    end
+    UU = reshape(uu,(numel(x)-1)*(k+1),[]);
+
 end
-
-

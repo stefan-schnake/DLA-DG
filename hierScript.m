@@ -1,5 +1,5 @@
 
-N = 256;
+N = 512;
 
 xx = [-1,1];vv = [-1,1];
 x = xx(1):(xx(2)-xx(1))/N:xx(2);
@@ -10,35 +10,36 @@ r_cut = 1;
 
 r = 1;
 
-test = 1;
+test = 4;
 
 %dt = 0.5*(2/N^2);
 %dt = .1;
-CFL = (max(abs(xx))+max(abs(vv)))/(2*k+1)*(1/N);
+CFL = 1.5/(2*k+1)*(1/N);
 %CFL = 1/N^2;
 %dt = 0.8*CFL;
 %CFL = (5/4)*(1/73536);
 %dt = 0.9*CFL;
 %dt = pi/(8*ceil(1/CFL));
 if exist('frac','var') == 0
-    frac = 1/2;
+    frac = 1/8;
 end
 dt = frac*CFL;
+%dt = 0.01;
 %dt = 0.05;
 %dt = 0.05;
 
-if exist('frac','var') == 0
+%if exist('frac','var') == 0
     alg = 'RARA_UC';
-end
+%end
 
-fullgrid  = false;
+fullgrid  = true;
 moviebool = false;
-plotbool  = false;
+plotbool  = true;
 savebool  = false;
 
 adapt  = true;
-%adapt_tol = 880*dt^2;
-adapt_tol = mytol(ii)*dt^2;
+adapt_tol = 200*dt^2;
+%adapt_tol = mytol(ii)*dt^2;
     %T = 1;  50dt^2 for RA; 12*dt^2 for WG
     %T = pi; 50dt^2 for RA;  5*dt^2 for WG
     
@@ -59,12 +60,13 @@ adapt_tol = mytol(ii)*dt^2;
 
 if exist('T','var') == 0
 %T = 1;
+%T = pi/2;
 T = pi;
-%T = pi;
 %T = 3.5;
 end
 
-time = 0;
+time.DLA = 0;
+time.FUL = 0;
 
 %%%-------------------------------------------
 
@@ -76,8 +78,6 @@ clf('reset')
 %clf('reset')
 %figure(7)
 %clf('reset')
-figure(8)
-clf('reset')
 end
 
 if moviebool
@@ -107,73 +107,85 @@ end
 %A = LDG;
 %A2 = LDG;
 
-if test == 1
-%init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
-box = @(x,y) (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
-init = @(x,y) soln_func(x,y,0,box);
-%init = @(x,y) x.^2.*y + x;
-%init = @(x,y) exp(10*(-(x-0.7).^2-(y-0.4)^2));
-%init = @(x,y) 16*(x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2).*(1/4-x.^2).*(1/4-y.^2);
-%init = @(x,y) (1-x.^2).*(1-y.^2);
-%init = @(x,y) exp(1/4*(x-y));
-%init = @(x,y) sin(pi*x).*sin(pi*y);
-%init = @(x,y) cos(pi*x).*cos(pi*y);
-%init = @(x,y) exp(-10*(x.^2+y.^2));
-%init = @(x,y) x.*y;
-%init = @(x,y) (x > -.25).*(x < .25).*(y > .25).*(y < .75).*x;
-%soln = @(x,y,t) init(x+t*y,y-t*x);
-BCsoln = @(x,v,t) soln_func(x,v,t,init);
-source = @(x,v,t) 0*x;
-%soln = @(x,v,t) 0*x;
-%soln = @(x,y,t) cos(pi*x).*cos(pi*y)*exp(-2*pi^2*t);
-elseif test == 2
-u_sht = @(x,y) x+y+x.*y.^2; %u_short
-L_usht = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y); %L_u
-u_lng = @(x,y) sin(pi*x).*sin(pi*y);
-L_ulng = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
-%u_lng = @(x,y) 0*x+1;
-%L_ulng = @(x,y) 0*x;
-%tmdp = @(t) 1/(t+1);
-%dt_tmdp = @(t) -1/(t+1)^2;
-tmdp = @(t) exp(-5*t);
-dt_tmdp = @(t) -5*exp(-5*t); 
-BCsoln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
-init = @(x,y) BCsoln(x,y,0);
-soln   = {@(x,t) sin(pi*x), @(t) 1-tmdp(t), @(y,t) sin(pi*y);...
-          @(x,t) x, @(t) tmdp(t), @(y,t) 0*y+1; ...
-          @(x,t) 0*x+1, @(t) tmdp(t), @(y,t) y;...
-          @(x,t) x, @(t) tmdp(t), @(y,t) y.^2};
-source_vec = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
-%%%Coding negative of source!!!!
-source = {@(x,t) sin(pi*x),    @(t) dt_tmdp(t) , @(y,t) sin(pi*y);...
-          @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) 0*y+1; ...
-          @(x,t) 0*x+1,        @(t) -dt_tmdp(t), @(y,t) y;...
-          @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) y.^2;...
-          @(x,t) -pi*cos(pi*x),@(t) -1+tmdp(t),  @(y,t) y.*sin(pi*y);...
-          @(x,t) x.*sin(pi*x), @(t) -1+tmdp(t),  @(y,t) pi*cos(pi*y);...
-          @(x,t) 0*x-1,        @(t) -tmdp(t),    @(y,t) y.*(1+y.^2);...
-          @(x,t) x,            @(t) -tmdp(t),    @(y,t) 0*y+1;...
-          @(x,t) 2*x.^2,       @(t) -tmdp(t),    @(y,t) y};
-elseif test == 3
-u_lng = @(x,y) x+y+x.*y.^2 +... x.^3.*y.^3 + x.^4.*y.^4 + ...
-    sin(pi*(x-1/4)).*sin(pi*(y-1/4)) + cos(pi*(x-1/4)).*cos(pi*(y-1/4));
-L_ulng = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y) + ... -y.*3.*x.^2.*y.^3 + x.*3*x.^3.*y.^2 - y.*4.*x.^3.*y.^4 + x.*4.*x.^4.*y.^3;% + ...
-    -y.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4)) + x.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) + ...
-     y.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) - x.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4));
-u_sht = @(x,y) sin(pi*x).*sin(pi*y);
-L_usht = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
-%u_lng = @(x,y) 0*x+1;
-%L_ulng = @(x,y) 0*x;
-%tmdp = @(t) 1/(t+1);
-%dt_tmdp = @(t) -1/(t+1)^2;
-tmdp = @(t) exp(-10*t);
-dt_tmdp = @(t) -10*exp(-10*t); 
-soln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
-init = @(x,y) soln(x,y,0);
-source = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
-else
-disp("Please select a test");
-return 
+switch test
+    case 1
+        useBC = false;
+        %init = @(x,y)  (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+        box = @(x,y) (x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2);
+        init = @(x,y) soln_func(x,y,0,box);
+        %init = @(x,y) x.^2.*y + x;
+        %init = @(x,y) exp(10*(-(x-0.7).^2-(y-0.4)^2));
+        %init = @(x,y) 16*(x > -1/2).*(x < 1/2).*(y > -1/2).*(y < 1/2).*(1/4-x.^2).*(1/4-y.^2);
+        %init = @(x,y) (1-x.^2).*(1-y.^2);
+        %init = @(x,y) exp(1/4*(x-y));
+        %init = @(x,y) sin(pi*x).*sin(pi*y);
+        %init = @(x,y) cos(pi*x).*cos(pi*y);
+        %init = @(x,y) exp(-10*(x.^2+y.^2));
+        %init = @(x,y) x.*y;
+        %init = @(x,y) (x > -.25).*(x < .25).*(y > .25).*(y < .75).*x;
+        %soln = @(x,y,t) init(x+t*y,y-t*x);
+        BCsoln = @(x,v,t) soln_func(x,v,t,init);
+        source = @(x,v,t) 0*x;
+        %soln = @(x,v,t) 0*x;
+        %soln = @(x,y,t) cos(pi*x).*cos(pi*y)*exp(-2*pi^2*t);
+    case 2
+        useBC = true;
+        u_sht = @(x,y) x+y+x.*y.^2; %u_short
+        L_usht = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y); %L_u
+        u_lng = @(x,y) sin(pi*x).*sin(pi*y);
+        L_ulng = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
+        %u_lng = @(x,y) 0*x+1;
+        %L_ulng = @(x,y) 0*x;
+        %tmdp = @(t) 1/(t+1);
+        %dt_tmdp = @(t) -1/(t+1)^2;
+        tmdp = @(t) exp(-5*t);
+        dt_tmdp = @(t) -5*exp(-5*t); 
+        BCsoln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
+        init = @(x,y) BCsoln(x,y,0);
+        soln   = {@(x,t) sin(pi*x), @(t) 1-tmdp(t), @(y,t) sin(pi*y);...
+                  @(x,t) x, @(t) tmdp(t), @(y,t) 0*y+1; ...
+                  @(x,t) 0*x+1, @(t) tmdp(t), @(y,t) y;...
+                  @(x,t) x, @(t) tmdp(t), @(y,t) y.^2};
+        source_vec = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
+        %%%Coding negative of source!!!!
+        source = {@(x,t) sin(pi*x),    @(t) dt_tmdp(t) , @(y,t) sin(pi*y);...
+                  @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) 0*y+1; ...
+                  @(x,t) 0*x+1,        @(t) -dt_tmdp(t), @(y,t) y;...
+                  @(x,t) x,            @(t) -dt_tmdp(t), @(y,t) y.^2;...
+                  @(x,t) -pi*cos(pi*x),@(t) -1+tmdp(t),  @(y,t) y.*sin(pi*y);...
+                  @(x,t) x.*sin(pi*x), @(t) -1+tmdp(t),  @(y,t) pi*cos(pi*y);...
+                  @(x,t) 0*x-1,        @(t) -tmdp(t),    @(y,t) y.*(1+y.^2);...
+                  @(x,t) x,            @(t) -tmdp(t),    @(y,t) 0*y+1;...
+                  @(x,t) 2*x.^2,       @(t) -tmdp(t),    @(y,t) y};
+    case 3
+        useBC = true;
+        u_lng = @(x,y) x+y+x.*y.^2 +... x.^3.*y.^3 + x.^4.*y.^4 + ...
+            sin(pi*(x-1/4)).*sin(pi*(y-1/4)) + cos(pi*(x-1/4)).*cos(pi*(y-1/4));
+        L_ulng = @(x,y) -y.*(1+y.^2) + x.*(1+2*x.*y) + ... -y.*3.*x.^2.*y.^3 + x.*3*x.^3.*y.^2 - y.*4.*x.^3.*y.^4 + x.*4.*x.^4.*y.^3;% + ...
+            -y.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4)) + x.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) + ...
+             y.*pi.*sin(pi*(x-1/4)).*cos(pi*(y-1/4)) - x.*pi.*cos(pi*(x-1/4)).*sin(pi*(y-1/4));
+        u_sht = @(x,y) sin(pi*x).*sin(pi*y);
+        L_usht = @(x,y) -pi*y.*cos(pi*x).*sin(pi*y) + pi*x.*sin(pi*x).*cos(pi*y);
+        %u_lng = @(x,y) 0*x+1;
+        %L_ulng = @(x,y) 0*x;
+        %tmdp = @(t) 1/(t+1);
+        %dt_tmdp = @(t) -1/(t+1)^2;
+        tmdp = @(t) exp(-10*t);
+        dt_tmdp = @(t) -10*exp(-10*t); 
+        soln = @(x,y,t) (1-tmdp(t))*u_lng(x,y)+tmdp(t)*u_sht(x,y);
+        init = @(x,y) soln(x,y,0);
+        source = @(x,y,t) -dt_tmdp(t)*u_lng(x,y)+dt_tmdp(t)*u_sht(x,y)+(1-tmdp(t))*L_ulng(x,y)+tmdp(t)*L_usht(x,y);
+    case 4
+        useBC = false;
+        %init = @(x,y) ( (x > -7/8).*(x < -5/8) + (x > -3/8).*(x < -1/8) ...
+        %               +(x >  1/8).*(x <  3/8) + (x >  5/8).*(x <  7/8) )...
+        %           .* ( (y > -7/8).*(y < -5/8) + (y > -3/8).*(y < -1/8) ...
+        %               +(y >  1/8).*(y <  3/8) + (y >  5/8).*(y <  7/8) );
+        center = -7/8:1/4:7/8; radius = 1/16;
+        init = @(x,y) bumpfunc(x,center,radius).*bumpfunc(y,center,radius);
+    otherwise
+        disp("Please select a test");
+        return 
 end
 
 u0 = buildNonSeparableSource(x,v,k,init);
@@ -204,12 +216,6 @@ R = [r];
 C = C0(:,1:r);
 S = S0(1:r,1:r);
 D = D0(:,1:r);
-
-%Modify C and D with random
-% C1 = randn(size(C)-[0,1]);
-% D1 = randn(size(C)-[0,1]);
-% [C,~] = qr([C(:,1) C1],0);
-% [D,~] = qr([D(:,1) D1],0);
 
 R_full = [];
 
@@ -244,7 +250,7 @@ if mod(i,ceil(T/(20*dt))) == 0 || i == 1
 end
 
 %% Create BC
-if test == 1
+if useBC == false
     BC.use = 0;
     BC2.use = 0;
 else
@@ -292,6 +298,7 @@ clear BC2
 
 %% Specify method
 updateDLA = @(C,S,D) DLA4_HB_FE(x,v,k,C,S,D,dt,Awave,BC);
+%updateDLA = @(C,S,D) DLA4_IMEX_FE(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK3(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA4_HB_SSP_RK2(x,v,k,C,S,D,dt,Awave,BC);
 %updateDLA = @(C,S,D) DLA_UC_Adapt_RK2(x,v,k,C,S,D,dt,Awave,BC);
@@ -316,7 +323,7 @@ if adapt
 else
     [C,S,D] = updateDLA(C,S,D);  
 end
-time = time + toc;
+time.DLA = time.DLA + toc;
 R = [R size(S,1)];
 r = size(S,1);
 
@@ -331,7 +338,9 @@ UU_FE = UU_FE - dt*applyMatA(UU_FE,Awave);
 %UU_RK3 = MAT_SSP_RK3(UU,dt,Awave,BC);
 %FU = -applyMatA(UU,Awave);
 %UU = UU - dt*applyMatA(UU,Awave);
+tic;
 UU = MAT_SSP_RK3(UU,dt,Awave,BC);
+time.FUL = time.FUL + toc;
 %UU = MAT_SSP_RK2(UU,dt,Awave,BC);
 %UU = computeMatrixExpon(UU,dt,Awave);
 
@@ -362,13 +371,20 @@ if plotbool && ( mod(i,ceil(T/(20*dt))) == 0 || i == 1 || lastplot)
     u = convertMattoVec(x,v,k,FMWT'*C*S*D'*FMWT);
     %UU = computeMatrixExpon(C0*S0*D0',0.03,Awave);
     %load UU_EXP; UU = UU_EXP;
-    uu = convertMattoVec(x,v,k,FMWT'*UU*FMWT);
+    
     %u_sol = buildNonSeparableSource(x,v,k,@(x,y) soln(x,y,i*dt));
     figure(5)
     %plotVec(x,v,k,u,@(x,y) BCsoln(x,y,t));
     %sgtitle('DLA Solution')
-    plotVecDualDiscrete(x,v,k,u,uu,myhist);
-    sgtitle("DLRA vs Full Rank - t = " + num2str(t));
+    if fullgrid
+        uu = convertMattoVec(x,v,k,FMWT'*UU*FMWT);
+        uu_fe = convertMattoVec(x,v,k,FMWT'*UU_FE*FMWT);
+        plotVecDualDiscrete(x,v,k,u,uu,myhist);
+        sgtitle("DLRA vs Full Rank - t = " + num2str(t));
+    else
+        plotVec(x,v,k,u);
+        title("DLRA - r = " + num2str(r) + ", t = " + num2str(t));
+    end
     
     if moviebool
         frame = getframe(gcf);
@@ -382,31 +398,6 @@ if plotbool && ( mod(i,ceil(T/(20*dt))) == 0 || i == 1 || lastplot)
     %sgtitle('Full-Grid-Low-Rank Solution')
     %plotVec(x,v,k,convertMattoVec(x,v,k,(FMWT'*C(:,1:2))*S(1:2,1:2)*(FMWT'*D(:,1:2))'),@(x,y) soln(x,y,i*dt));
     %sgtitle('Truncated DLA Solution, r=2')
-    
-    %figure(6)
-    %semilogy(sigk);
-    
-    
-    figure(8)
-    cla reset
-    %plot(log10(abs(C)))
-    %absC = sum(abs(C));
-    %absD = sum(abs(D));
-    %Xval = 1:numel(absC);
-    %plot(Xval,absC,Xval,absD);   
-    %semilogy(1:size(myhist,2),myhist(5,:),1:size(myhist,2),myhist(4,:))
-    if fullgrid
-        %semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:))
-        semilogy(myhist(6,:),myhist(4,:),myhist(6,:),myhist(5,:),myhist(6,:),myhist(7,:))
-    end
-    yyaxis right
-    plot(myhist(6,:),myhist(2,:))
-    yyaxis left
-    %legend({'LTE','u-uu','rank'},'location','best')
-    legend({'LTE','u-uu','uu-uu_lr','rank'},'location','best')
-    
-
-    %semilogy(sing);
  
     drawnow
     aa = 2;
@@ -529,33 +520,6 @@ function LU = applyMatA(U,Awave)
     end
 end
 
-function sparseSVD(fcell,X,trans)
-    NN = size(fcell,1);
-    Y = zeros(size(X));
-    if strcmp(trans,'notransp')
-        for l=1:NN
-            Y = Y + (fcell{l,1}*fcell{l,2})*(fcell{l,3}'*X);
-        end
-    else
-        for l=1:NN
-            Y = Y + (fcell{l,3}*fcell{l,2}')*(fcell{l,1}'*X);
-        end        
-    end
-
-end
-
-function M = assembleLRform(fcell)
-    NN = size(fcell,1);
-    M = zeros(size(fcell{1,1},1),size(fcell{1,3},1));
-    for l=1:NN
-        M = M + fcell{l,1}*fcell{l,2}*fcell{l,3}';
-    end
-end
-
-function PU = calcTanProj(U,C,D)
-    PU = (U*D)*D' - C*(C'*U*D)*D' + C*(C'*U);
-end
-
 function U = computeMatrixExpon(U,t,Awave)
     u = U;
     for i=1:20
@@ -568,5 +532,13 @@ function U = computeMatrixExpon(U,t,Awave)
         if 1/factorial(i)*t^i*norm(u,'fro') < 1e-15
             break
         end
+    end
+end
+
+function z = bumpfunc(x,center,radius)
+    %determines bump func of centers and radius given
+    z = zeros(size(x));
+    for c=center
+        z = z + (x > c - radius).*(x < c + radius);
     end
 end
